@@ -12,7 +12,7 @@ RVIZ_FILE = 'my_robot.rviz'
 def launch_setup(context, *args, **kwargs):
     num_robots = int(LaunchConfiguration('num_robots').perform(context))
     
-    robot_bringup_package_dir = get_package_share_directory('robot_bringup')
+    robot_bringup_package_dir = get_package_share_directory('multirobot_bringup')
     urdf_file_path = os.path.join(robot_bringup_package_dir, 'urdf', 'my_robot.xacro')
     
     launch_nodes = []
@@ -98,7 +98,7 @@ def launch_setup(context, *args, **kwargs):
 
         # 4. Differential Drive Node (The class you provided)
         drive_node = Node(
-            package='robot_bringup',       # Replace with your actual package name
+            package='multirobot_bringup',       # Replace with your actual package name
             executable='differential_drive', # matches the entry_point in setup.py
             namespace=robot_name,          # Launches in group /robot_i
             output='screen'
@@ -106,7 +106,7 @@ def launch_setup(context, *args, **kwargs):
 
         # 4.5 Camera Subscriber Node (Monitor camera data)
         camera_sub_node = Node(
-            package='robot_bringup',
+            package='multirobot_bringup',
             executable='camera_subscriber',
             namespace=robot_name,
             output='screen'
@@ -158,11 +158,11 @@ def launch_setup(context, *args, **kwargs):
             output='screen'
         )
         
-        launch_nodes.append(rsp)
-        launch_nodes.append(jsp)
-        launch_nodes.append(TimerAction(period=3.0 + i*2.0, actions=[spawn]))
-        launch_nodes.append(TimerAction(period=6.0 + i*2.0, actions=[drive_node]))
-        launch_nodes.append(TimerAction(period=7.0 + i*2.0, actions=[camera_sub_node]))
+        launch_nodes.append(TimerAction(period=2.0, actions=[rsp]))  # Delay RSP start
+        launch_nodes.append(TimerAction(period=2.0, actions=[jsp]))  # Delay JSP start
+        launch_nodes.append(TimerAction(period=5.0 + i*2.0, actions=[spawn]))  # Increased spawn delay
+        launch_nodes.append(TimerAction(period=8.0 + i*2.0, actions=[drive_node]))  # Increased drive node delay
+        launch_nodes.append(TimerAction(period=9.0 + i*2.0, actions=[camera_sub_node]))  # Increased camera delay
         launch_nodes.append(world_to_odom_tf)
         #launch_nodes.append(static_tf)
         launch_nodes.append(camera_tf)
@@ -190,7 +190,7 @@ def generate_launch_description():
             if '/snap/' not in p
         ])
 
-    robot_bringup_package_dir = get_package_share_directory('robot_bringup')
+    robot_bringup_package_dir = get_package_share_directory('multirobot_bringup')
     rviz_config_path = os.path.join(robot_bringup_package_dir, 'rviz', RVIZ_FILE)
     
     # IMPORTANTE: Definimos la ruta a tu mundo personalizado
@@ -222,7 +222,7 @@ def generate_launch_description():
 
     return LaunchDescription([
         num_robots_arg,
-        rviz_node,
         gz_sim,
+        TimerAction(period=5.0, actions=[rviz_node]),  # Delay RViz to ensure Gazebo clock is ready
         OpaqueFunction(function=launch_setup)
     ])
