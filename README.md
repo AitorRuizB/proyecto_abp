@@ -39,7 +39,7 @@ Source the setup file and run launch files:
 
 ```bash
 source install/setup.bash
-ros2 launch multirobot_bringup <launch_file_name>
+ros2 launch multirobot_bringup view_robot.launch.py
 ```
 
 ## Dependencies

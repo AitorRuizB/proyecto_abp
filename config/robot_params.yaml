@@ -1,0 +1,21 @@
+/**:
+  ros__parameters:
+    # Robot configuration parameters
+    # robot_name: "dynamic"
+    num_robots: 3
+    
+    # Sensor parameters
+    sensor:
+      lidar_range: 10.0
+      camera_fps: 30
+    
+    # Control parameters
+    control:
+      max_linear_velocity: 1.0
+      max_angular_velocity: 1.5
+      acceleration_limit: 0.5
+    
+    # Simulation parameters
+    simulation:
+      update_rate: 1000
+      gravity: [0.0, 0.0, -9.81]
