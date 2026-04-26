@@ -189,12 +189,6 @@
       <pose>0 6.5 0.5 0 0 0</pose>
       <link name="link"><collision name="collision"><geometry><box><size>0.2 0.5 1</size></box></geometry></collision><visual name="visual"><geometry><box><size>0.2 0.5 1</size></box></geometry><material><ambient>0.4 0.4 0.4 1</ambient><diffuse>0.4 0.4 0.4 1</diffuse></material></visual></link>
     </model>
-    <!-- Turn West Wall (closes off the north path, forces west turn) -->
-    <model name="hall_N_turn_wall_N">
-      <static>true</static>
-      <pose>0 8.1 1 0 0 0</pose> <!-- y: 8.0 (hallway end) + 0.1 (half wall thickness) = 8.1 -->
-      <link name="link"><collision name="collision"><geometry><box><size>1.4 0.2 2</size></box></geometry></collision><visual name="visual"><geometry><box><size>1.4 0.2 2</size></box></geometry><material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material></visual></link>
-    </model>
     <!-- Segment 2 (West to shelf) -->
     <model name="hall_N_seg2_wall_N">
       <static>true</static>
@@ -283,12 +277,6 @@
       <pose>0 -6.5 0.5 0 0 0</pose>
       <link name="link"><collision name="collision"><geometry><box><size>0.2 0.5 1</size></box></geometry></collision><visual name="visual"><geometry><box><size>0.2 0.5 1</size></box></geometry><material><ambient>0.4 0.4 0.4 1</ambient><diffuse>0.4 0.4 0.4 1</diffuse></material></visual></link>
     </model>
-    <!-- Turn West Wall (closes off the south path, forces west turn) -->
-    <model name="hall_S_turn_wall_S">
-      <static>true</static>
-      <pose>0 -8.1 1 0 0 0</pose>
-      <link name="link"><collision name="collision"><geometry><box><size>1.4 0.2 2</size></box></geometry></collision><visual name="visual"><geometry><box><size>1.4 0.2 2</size></box></geometry><material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material></visual></link>
-    </model>
     <!-- Segment 2 (West to shelf) -->
     <model name="hall_S_seg2_wall_N">
       <static>true</static>
@@ -352,12 +340,6 @@
       <static>true</static>
       <pose>-8 -5 0.5 0 0 1.5708</pose>
       <link name="link"><collision name="collision"><geometry><box><size>0.5 0.2 1</size></box></geometry></collision><visual name="visual"><geometry><box><size>0.5 0.2 1</size></box></geometry><material><ambient>0.4 0.4 0.4 1</ambient><diffuse>0.4 0.4 0.4 1</diffuse></material></visual></link>
-    </model>
-    <!-- Turn East Wall (closes off the south path, forces east turn) -->
-    <model name="hall_W_turn_wall_S">
-      <static>true</static>
-      <pose>-8 -8.1 1 0 0 0</pose>
-      <link name="link"><collision name="collision"><geometry><box><size>1.4 0.2 2</size></box></geometry></collision><visual name="visual"><geometry><box><size>1.4 0.2 2</size></box></geometry><material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material></visual></link>
     </model>
     <!-- Segment 3 (East to shelf) -->
     <model name="hall_W_seg3_wall_N">
