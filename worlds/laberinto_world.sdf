@@ -1,0 +1,447 @@
+<?xml version="1.0" ?>
+<sdf version="1.7">
+  <world name="laberinto_world">
+
+<!-- ===================================================== -->
+<!-- Plugins needed for the simulation                     -->
+<!-- Gazebo uses system plugins to enable core features   -->
+<!-- ===================================================== -->
+
+<!-- Physics engine: enables dynamics simulation
+     (gravity, collisions, wheel motion, forces) -->
+<plugin filename="gz-sim-physics-system"
+        name="gz::sim::systems::Physics"/>
+
+<!-- User commands: allows external commands such as
+     spawning or deleting entities from ROS or CLI -->
+<plugin filename="gz-sim-user-commands-system"
+        name="gz::sim::systems::UserCommands"/>
+
+<!-- Scene broadcaster: sends simulation updates to
+     the GUI so objects move correctly in the viewer -->
+<plugin filename="gz-sim-scene-broadcaster-system"
+        name="gz::sim::systems::SceneBroadcaster"/>
+
+<plugin name="gz::sim::systems::Imu" filename="gz-sim-imu-system"/>
+
+<!-- Sensors system: enables simulated sensors such as
+     LiDAR, cameras, IMU, etc. Without this plugin
+     sensors exist but do not produce data -->
+<plugin filename="gz-sim-sensors-system"
+        name="gz::sim::systems::Sensors">
+
+  <!-- Rendering engine used by sensors.
+       "ogre2" is standard but WSL2 often works better with "ogre". -->
+  <render_engine>ogre</render_engine>
+
+</plugin>
+
+    <!-- Sun -->
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Sun</uri>
+    </include>
+
+<!-- White floor -->
+<model name="white_floor">
+  <static>true</static>
+  <pose>0 0 0 0 0 0</pose>
+
+  <link name="floor_link">
+
+    <collision name="collision">
+      <geometry>
+        <plane>
+          <normal>0 0 1</normal>
+          <size>40 40</size>
+        </plane>
+      </geometry>
+    </collision>
+
+    <visual name="visual">
+      <geometry>
+        <plane>
+          <normal>0 0 1</normal>
+          <size>40 40</size>
+        </plane>
+      </geometry>
+
+      <material>
+        <ambient>1 1 1 1</ambient>
+        <diffuse>1 1 1 1</diffuse>
+        <specular>0.1 0.1 0.1 1</specular>
+      </material>
+
+    </visual>
+
+  </link>
+</model>
+
+    <!-- ===================================================== -->
+    <!-- CENTRAL ROOM (Square with round visual)               -->
+    <!-- ===================================================== -->
+
+    <!-- Central Room Walls (8x8m inner square, 0.2m thick, 2m high) -->
+    <!-- Outer boundary of central room is x,y = +/- 4.1m -->
+    <!-- Door width = 1.5m. Remaining wall length on each side = (8 - 1.5) / 2 = 3.25m -->
+
+    <!-- North Wall Segments (y = 4.1) -->
+    <model name="central_wall_north_left">
+      <static>true</static>
+      <pose>-2.375 4.1 1 0 0 0</pose>
+      <link name="link"><collision name="collision"><geometry><box><size>3.25 0.2 2</size></box></geometry></collision><visual name="visual"><geometry><box><size>3.25 0.2 2</size></box></geometry><material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material></visual></link>
+    </model>
+    <model name="central_wall_north_right">
+      <static>true</static>
+      <pose>2.375 4.1 1 0 0 0</pose>
+      <link name="link"><collision name="collision"><geometry><box><size>3.25 0.2 2</size></box></geometry></collision><visual name="visual"><geometry><box><size>3.25 0.2 2</size></box></geometry><material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material></visual></link>
+    </model>
+    <!-- South Wall Segments (y = -4.1) -->
+    <model name="central_wall_south_left">
+      <static>true</static>
+      <pose>-2.375 -4.1 1 0 0 0</pose>
+      <link name="link"><collision name="collision"><geometry><box><size>3.25 0.2 2</size></box></geometry></collision><visual name="visual"><geometry><box><size>3.25 0.2 2</size></box></geometry><material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material></visual></link>
+    </model>
+    <model name="central_wall_south_right">
+      <static>true</static>
+      <pose>2.375 -4.1 1 0 0 0</pose>
+      <link name="link"><collision name="collision"><geometry><box><size>3.25 0.2 2</size></box></geometry></collision><visual name="visual"><geometry><box><size>3.25 0.2 2</size></box></geometry><material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material></visual></link>
+    </model>
+    <!-- East Wall Segments (x = 4.1) -->
+    <model name="central_wall_east_bottom">
+      <static>true</static>
+      <pose>4.1 -2.375 1 0 0 0</pose>
+      <link name="link"><collision name="collision"><geometry><box><size>0.2 3.25 2</size></box></geometry></collision><visual name="visual"><geometry><box><size>0.2 3.25 2</size></box></geometry><material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material></visual></link>
+    </model>
+    <model name="central_wall_east_top">
+      <static>true</static>
+      <pose>4.1 2.375 1 0 0 0</pose>
+      <link name="link"><collision name="collision"><geometry><box><size>0.2 3.25 2</size></box></geometry></collision><visual name="visual"><geometry><box><size>0.2 3.25 2</size></box></geometry><material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material></visual></link>
+    </model>
+    <!-- West Wall Segments (x = -4.1) -->
+    <model name="central_wall_west_bottom">
+      <static>true</static>
+      <pose>-4.1 -2.375 1 0 0 0</pose>
+      <link name="link"><collision name="collision"><geometry><box><size>0.2 3.25 2</size></box></geometry></collision><visual name="visual"><geometry><box><size>0.2 3.25 2</size></box></geometry><material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material></visual></link>
+    </model>
+    <model name="central_wall_west_top">
+      <static>true</static>
+      <pose>-4.1 2.375 1 0 0 0</pose>
+      <link name="link"><collision name="collision"><geometry><box><size>0.2 3.25 2</size></box></geometry></collision><visual name="visual"><geometry><box><size>0.2 3.25 2</size></box></geometry><material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material></visual></link>
+    </model>
+
+    <!-- Closed Doors (1.5m wide, 0.2m deep, 2m high) -->
+    <model name="door_north">
+      <static>true</static>
+      <pose>0 4.1 1 0 0 0</pose>
+      <link name="link"><collision name="collision"><geometry><box><size>0.2 1.5 2</size></box></geometry></collision><visual name="visual"><geometry><box><size>0.2 1.5 2</size></box></geometry><material><ambient>0.3 0.3 0.3 1</ambient><diffuse>0.3 0.3 0.3 1</diffuse></material></visual></link>
+    </model>
+    <model name="door_south">
+      <static>true</static>
+      <pose>0 -4.1 1 0 0 0</pose>
+      <link name="link"><collision name="collision"><geometry><box><size>0.2 1.5 2</size></box></geometry></collision><visual name="visual"><geometry><box><size>0.2 1.5 2</size></box></geometry><material><ambient>0.3 0.3 0.3 1</ambient><diffuse>0.3 0.3 0.3 1</diffuse></material></visual></link>
+    </model>
+    <model name="door_east">
+      <static>true</static>
+      <pose>4.1 0 1 0 0 1.5708</pose>
+      <link name="link"><collision name="collision"><geometry><box><size>0.2 1.5 2</size></box></geometry></collision><visual name="visual"><geometry><box><size>0.2 1.5 2</size></box></geometry><material><ambient>0.3 0.3 0.3 1</ambient><diffuse>0.3 0.3 0.3 1</diffuse></material></visual></link>
+    </model>
+    <model name="door_west">
+      <static>true</static>
+      <pose>-4.1 0 1 0 0 1.5708</pose>
+      <link name="link"><collision name="collision"><geometry><box><size>0.2 1.5 2</size></box></geometry></collision><visual name="visual"><geometry><box><size>0.2 1.5 2</size></box></geometry><material><ambient>0.3 0.3 0.3 1</ambient><diffuse>0.3 0.3 0.3 1</diffuse></material></visual></link>
+    </model>
+
+    <!-- Visual for "round" common room on the floor -->
+    <model name="central_room_floor_visual">
+      <static>true</static>
+      <pose>0 0 0.01 0 0 0</pose> <!-- Slightly above the main floor -->
+      <link name="link">
+        <visual name="visual">
+          <geometry><cylinder><radius>3.9</radius><length>0.01</length></cylinder></geometry>
+          <material>
+            <ambient>0.9 0.9 0.9 1</ambient>
+            <diffuse>0.9 0.9 0.9 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ===================================================== -->
+    <!-- NORTH HALLWAY (to Red Shelf at -10, 8)                -->
+    <!-- Hallway width: 1.0m. Walls are 0.2m thick.            -->
+    <!-- Path: North (from y=4.1 to y=8.0), then West (from x=0 to x=-10) -->
+    <!-- ===================================================== -->
+
+    <!-- Segment 1 (North) -->
+    <model name="hall_N_seg1_wall_W">
+      <static>true</static>
+      <pose>-0.6 6.05 1 0 0 0</pose> <!-- x: -0.5 (inner edge) - 0.1 (half wall thickness) = -0.6 -->
+      <link name="link"><collision name="collision"><geometry><box><size>0.2 3.9 2</size></box></geometry></collision><visual name="visual"><geometry><box><size>0.2 3.9 2</size></box></geometry><material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material></visual></link>
+    </model>
+    <model name="hall_N_seg1_wall_E">
+      <static>true</static>
+      <pose>0.6 6.05 1 0 0 0</pose> <!-- x: 0.5 (inner edge) + 0.1 (half wall thickness) = 0.6 -->
+      <link name="link"><collision name="collision"><geometry><box><size>0.2 3.9 2</size></box></geometry></collision><visual name="visual"><geometry><box><size>0.2 3.9 2</size></box></geometry><material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material></visual></link>
+    </model>
+    <!-- Obstacle 1 (Pillar) -->
+    <model name="hall_N_obs1">
+      <static>true</static>
+      <pose>0 6.5 0.5 0 0 0</pose>
+      <link name="link"><collision name="collision"><geometry><box><size>0.2 0.5 1</size></box></geometry></collision><visual name="visual"><geometry><box><size>0.2 0.5 1</size></box></geometry><material><ambient>0.4 0.4 0.4 1</ambient><diffuse>0.4 0.4 0.4 1</diffuse></material></visual></link>
+    </model>
+    <!-- Turn West Wall (closes off the north path, forces west turn) -->
+    <model name="hall_N_turn_wall_N">
+      <static>true</static>
+      <pose>0 8.1 1 0 0 0</pose> <!-- y: 8.0 (hallway end) + 0.1 (half wall thickness) = 8.1 -->
+      <link name="link"><collision name="collision"><geometry><box><size>1.4 0.2 2</size></box></geometry></collision><visual name="visual"><geometry><box><size>1.4 0.2 2</size></box></geometry><material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material></visual></link>
+    </model>
+    <!-- Segment 2 (West to shelf) -->
+    <model name="hall_N_seg2_wall_N">
+      <static>true</static>
+      <pose>-4.5 8.6 1 0 0 0</pose> <!-- y: 8.0 (hallway center) + 0.5 (half width) + 0.1 (half wall thickness) = 8.6 -->
+      <link name="link"><collision name="collision"><geometry><box><size>9 0.2 2</size></box></geometry></collision><visual name="visual"><geometry><box><size>9 0.2 2</size></box></geometry><material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material></visual></link>
+    </model>
+    <model name="hall_N_seg2_wall_S">
+      <static>true</static>
+      <pose>-4.5 7.4 1 0 0 0</pose> <!-- y: 8.0 (hallway center) - 0.5 (half width) - 0.1 (half wall thickness) = 7.4 -->
+      <link name="link"><collision name="collision"><geometry><box><size>9 0.2 2</size></box></geometry></collision><visual name="visual"><geometry><box><size>9 0.2 2</size></box></geometry><material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material></visual></link>
+    </model>
+    <!-- Obstacle 2 (Wall segment) -->
+    <model name="hall_N_obs2">
+      <static>true</static>
+      <pose>-5 8 0.5 0 0 0</pose>
+      <link name="link"><collision name="collision"><geometry><box><size>0.5 0.2 1</size></box></geometry></collision><visual name="visual"><geometry><box><size>0.5 0.2 1</size></box></geometry><material><ambient>0.4 0.4 0.4 1</ambient><diffuse>0.4 0.4 0.4 1</diffuse></material></visual></link>
+    </model>
+
+    <!-- ===================================================== -->
+    <!-- EAST HALLWAY (to Blue Shelf at 10, 8)                 -->
+    <!-- Hallway width: 1.0m. Walls are 0.2m thick.            -->
+    <!-- Path: East (from x=4.1 to x=8.0), then North (from y=0 to y=8) -->
+    <!-- ===================================================== -->
+
+    <!-- Segment 1 (East) -->
+    <model name="hall_E_seg1_wall_S">
+      <static>true</static>
+      <pose>6.05 -0.6 1 0 0 0</pose>
+      <link name="link"><collision name="collision"><geometry><box><size>3.9 0.2 2</size></box></geometry></collision><visual name="visual"><geometry><box><size>3.9 0.2 2</size></box></geometry><material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material></visual></link>
+    </model>
+    <model name="hall_E_seg1_wall_N">
+      <static>true</static>
+      <pose>6.05 0.6 1 0 0 0</pose>
+      <link name="link"><collision name="collision"><geometry><box><size>3.9 0.2 2</size></box></geometry></collision><visual name="visual"><geometry><box><size>3.9 0.2 2</size></box></geometry><material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material></visual></link>
+    </model>
+    <!-- Obstacle 1 (Pillar) -->
+    <model name="hall_E_obs1">
+      <static>true</static>
+      <pose>6.5 0 0.5 0 0 1.5708</pose>
+      <link name="link"><collision name="collision"><geometry><box><size>0.5 0.2 1</size></box></geometry></collision><visual name="visual"><geometry><box><size>0.5 0.2 1</size></box></geometry><material><ambient>0.4 0.4 0.4 1</ambient><diffuse>0.4 0.4 0.4 1</diffuse></material></visual></link>
+    </model>
+    <!-- Turn North Wall (closes off the east path, forces north turn) -->
+    <model name="hall_E_turn_wall_E">
+      <static>true</static>
+      <pose>8.1 0 1 0 0 1.5708</pose>
+      <link name="link"><collision name="collision"><geometry><box><size>0.2 1.4 2</size></box></geometry></collision><visual name="visual"><geometry><box><size>0.2 1.4 2</size></box></geometry><material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material></visual></link>
+    </model>
+    <!-- Segment 2 (North to shelf) -->
+    <model name="hall_E_seg2_wall_W">
+      <static>true</static>
+      <pose>8.6 4.5 1 0 0 0</pose>
+      <link name="link"><collision name="collision"><geometry><box><size>0.2 9 2</size></box></geometry></collision><visual name="visual"><geometry><box><size>0.2 9 2</size></box></geometry><material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material></visual></link>
+    </model>
+    <model name="hall_E_seg2_wall_E">
+      <static>true</static>
+      <pose>9.4 4.5 1 0 0 0</pose>
+      <link name="link"><collision name="collision"><geometry><box><size>0.2 9 2</size></box></geometry></collision><visual name="visual"><geometry><box><size>0.2 9 2</size></box></geometry><material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material></visual></link>
+    </model>
+    <!-- Obstacle 2 (Wall segment) -->
+    <model name="hall_E_obs2">
+      <static>true</static>
+      <pose>9 5 0.5 0 0 1.5708</pose>
+      <link name="link"><collision name="collision"><geometry><box><size>0.5 0.2 1</size></box></geometry></collision><visual name="visual"><geometry><box><size>0.5 0.2 1</size></box></geometry><material><ambient>0.4 0.4 0.4 1</ambient><diffuse>0.4 0.4 0.4 1</diffuse></material></visual></link>
+    </model>
+
+    <!-- ===================================================== -->
+    <!-- SOUTH HALLWAY (to Green Shelf at -10, -8)             -->
+    <!-- Hallway width: 1.0m. Walls are 0.2m thick.            -->
+    <!-- Path: South (from y=-4.1 to y=-8.0), then West (from x=0 to x=-10) -->
+    <!-- ===================================================== -->
+
+    <!-- Segment 1 (South) -->
+    <model name="hall_S_seg1_wall_W">
+      <static>true</static>
+      <pose>-0.6 -6.05 1 0 0 0</pose>
+      <link name="link"><collision name="collision"><geometry><box><size>0.2 3.9 2</size></box></geometry></collision><visual name="visual"><geometry><box><size>0.2 3.9 2</size></box></geometry><material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material></visual></link>
+    </model>
+    <model name="hall_S_seg1_wall_E">
+      <static>true</static>
+      <pose>0.6 -6.05 1 0 0 0</pose>
+      <link name="link"><collision name="collision"><geometry><box><size>0.2 3.9 2</size></box></geometry></collision><visual name="visual"><geometry><box><size>0.2 3.9 2</size></box></geometry><material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material></visual></link>
+    </model>
+    <!-- Obstacle 1 (Pillar) -->
+    <model name="hall_S_obs1">
+      <static>true</static>
+      <pose>0 -6.5 0.5 0 0 0</pose>
+      <link name="link"><collision name="collision"><geometry><box><size>0.2 0.5 1</size></box></geometry></collision><visual name="visual"><geometry><box><size>0.2 0.5 1</size></box></geometry><material><ambient>0.4 0.4 0.4 1</ambient><diffuse>0.4 0.4 0.4 1</diffuse></material></visual></link>
+    </model>
+    <!-- Turn West Wall (closes off the south path, forces west turn) -->
+    <model name="hall_S_turn_wall_S">
+      <static>true</static>
+      <pose>0 -8.1 1 0 0 0</pose>
+      <link name="link"><collision name="collision"><geometry><box><size>1.4 0.2 2</size></box></geometry></collision><visual name="visual"><geometry><box><size>1.4 0.2 2</size></box></geometry><material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material></visual></link>
+    </model>
+    <!-- Segment 2 (West to shelf) -->
+    <model name="hall_S_seg2_wall_N">
+      <static>true</static>
+      <pose>-4.5 -7.4 1 0 0 0</pose>
+      <link name="link"><collision name="collision"><geometry><box><size>9 0.2 2</size></box></geometry></collision><visual name="visual"><geometry><box><size>9 0.2 2</size></box></geometry><material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material></visual></link>
+    </model>
+    <model name="hall_S_seg2_wall_S">
+      <static>true</static>
+      <pose>-4.5 -8.6 1 0 0 0</pose>
+      <link name="link"><collision name="collision"><geometry><box><size>9 0.2 2</size></box></geometry></collision><visual name="visual"><geometry><box><size>9 0.2 2</size></box></geometry><material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material></visual></link>
+    </model>
+    <!-- Obstacle 2 (Wall segment) -->
+    <model name="hall_S_obs2">
+      <static>true</static>
+      <pose>-5 -8 0.5 0 0 0</pose>
+      <link name="link"><collision name="collision"><geometry><box><size>0.5 0.2 1</size></box></geometry></collision><visual name="visual"><geometry><box><size>0.5 0.2 1</size></box></geometry><material><ambient>0.4 0.4 0.4 1</ambient><diffuse>0.4 0.4 0.4 1</diffuse></material></visual></link>
+    </model>
+
+    <!-- ===================================================== -->
+    <!-- WEST HALLWAY (to Yellow Shelf at 10, -8)              -->
+    <!-- Hallway width: 1.0m. Walls are 0.2m thick.            -->
+    <!-- Path: West (from x=-4.1 to x=-8.0), then South (from y=0 to y=-8), then East (from x=-8 to x=10) -->
+    <!-- ===================================================== -->
+
+    <!-- Segment 1 (West) -->
+    <model name="hall_W_seg1_wall_S">
+      <static>true</static>
+      <pose>-6.05 -0.6 1 0 0 0</pose>
+      <link name="link"><collision name="collision"><geometry><box><size>3.9 0.2 2</size></box></geometry></collision><visual name="visual"><geometry><box><size>3.9 0.2 2</size></box></geometry><material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material></visual></link>
+    </model>
+    <model name="hall_W_seg1_wall_N">
+      <static>true</static>
+      <pose>-6.05 0.6 1 0 0 0</pose>
+      <link name="link"><collision name="collision"><geometry><box><size>3.9 0.2 2</size></box></geometry></collision><visual name="visual"><geometry><box><size>3.9 0.2 2</size></box></geometry><material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material></visual></link>
+    </model>
+    <!-- Obstacle 1 (Pillar) -->
+    <model name="hall_W_obs1">
+      <static>true</static>
+      <pose>-6.5 0 0.5 0 0 1.5708</pose>
+      <link name="link"><collision name="collision"><geometry><box><size>0.5 0.2 1</size></box></geometry></collision><visual name="visual"><geometry><box><size>0.5 0.2 1</size></box></geometry><material><ambient>0.4 0.4 0.4 1</ambient><diffuse>0.4 0.4 0.4 1</diffuse></material></visual></link>
+    </model>
+    <!-- Turn South Wall (closes off the west path, forces south turn) -->
+    <model name="hall_W_turn_wall_W">
+      <static>true</static>
+      <pose>-8.1 0 1 0 0 1.5708</pose>
+      <link name="link"><collision name="collision"><geometry><box><size>0.2 1.4 2</size></box></geometry></collision><visual name="visual"><geometry><box><size>0.2 1.4 2</size></box></geometry><material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material></visual></link>
+    </model>
+    <!-- Segment 2 (South) -->
+    <model name="hall_W_seg2_wall_W">
+      <static>true</static>
+      <pose>-8.6 -4.5 1 0 0 0</pose>
+      <link name="link"><collision name="collision"><geometry><box><size>0.2 9 2</size></box></geometry></collision><visual name="visual"><geometry><box><size>0.2 9 2</size></box></geometry><material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material></visual></link>
+    </model>
+    <model name="hall_W_seg2_wall_E">
+      <static>true</static>
+      <pose>-7.4 -4.5 1 0 0 0</pose>
+      <link name="link"><collision name="collision"><geometry><box><size>0.2 9 2</size></box></geometry></collision><visual name="visual"><geometry><box><size>0.2 9 2</size></box></geometry><material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material></visual></link>
+    </model>
+    <!-- Obstacle 2 (Wall segment) -->
+    <model name="hall_W_obs2">
+      <static>true</static>
+      <pose>-8 -5 0.5 0 0 1.5708</pose>
+      <link name="link"><collision name="collision"><geometry><box><size>0.5 0.2 1</size></box></geometry></collision><visual name="visual"><geometry><box><size>0.5 0.2 1</size></box></geometry><material><ambient>0.4 0.4 0.4 1</ambient><diffuse>0.4 0.4 0.4 1</diffuse></material></visual></link>
+    </model>
+    <!-- Turn East Wall (closes off the south path, forces east turn) -->
+    <model name="hall_W_turn_wall_S">
+      <static>true</static>
+      <pose>-8 -8.1 1 0 0 0</pose>
+      <link name="link"><collision name="collision"><geometry><box><size>1.4 0.2 2</size></box></geometry></collision><visual name="visual"><geometry><box><size>1.4 0.2 2</size></box></geometry><material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material></visual></link>
+    </model>
+    <!-- Segment 3 (East to shelf) -->
+    <model name="hall_W_seg3_wall_N">
+      <static>true</static>
+      <pose>1.0 -7.4 1 0 0 0</pose>
+      <link name="link"><collision name="collision"><geometry><box><size>18 0.2 2</size></box></geometry></collision><visual name="visual"><geometry><box><size>18 0.2 2</size></box></geometry><material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material></visual></link>
+    </model>
+    <model name="hall_W_seg3_wall_S">
+      <static>true</static>
+      <pose>1.0 -8.6 1 0 0 0</pose>
+      <link name="link"><collision name="collision"><geometry><box><size>18 0.2 2</size></box></geometry></collision><visual name="visual"><geometry><box><size>18 0.2 2</size></box></geometry><material><ambient>0.7 0.7 0.7 1</ambient><diffuse>0.7 0.7 0.7 1</diffuse></material></visual></link>
+    </model>
+
+    <!-- ===================================================== -->
+    <!-- SHELVES / COLORED BOXES (repositioned)                -->
+    <!-- ===================================================== -->
+
+    <model name="shelf_red">
+      <static>true</static>
+      <pose>-10 8 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>2 1 1</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>2 1 1</size></box></geometry>
+          <material>
+            <ambient>1 0 0 1</ambient>
+            <diffuse>1 0 0 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="shelf_blue">
+      <static>true</static>
+      <pose>10 8 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>2 1 1</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>2 1 1</size></box></geometry>
+          <material>
+            <ambient>0 0 1 1</ambient>
+            <diffuse>0 0 1 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="shelf_green">
+      <static>true</static>
+      <pose>-10 -8 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>2 1 1</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>2 1 1</size></box></geometry>
+          <material>
+            <ambient>0 1 0 1</ambient>
+            <diffuse>0 1 0 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="shelf_yellow">
+      <static>true</static>
+      <pose>10 -8 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>2 1 1</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>2 1 1</size></box></geometry>
+          <material>
+            <ambient>1 1 0 1</ambient>
+            <diffuse>1 1 0 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+  </world>
+</sdf>
