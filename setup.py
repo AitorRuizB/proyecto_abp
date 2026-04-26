@@ -38,6 +38,8 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'differential_drive=multirobot_bringup.differentialDrive:main',
+            'camera_subscriber=multirobot_bringup.cameraSubscriber:main',
         ],
     },
 )
