@@ -8,7 +8,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 
 RVIZ_FILE = 'default.rviz'
-GZ_WORLD_FILE = 'laberinto_world.sdf'
+GZ_WORLD_FILE = 'laberinto_v1_world.sdf'
 
 def launch_setup(context, *args, **kwargs):
     num_robots = int(LaunchConfiguration('num_robots').perform(context))
@@ -93,7 +93,7 @@ def launch_setup(context, *args, **kwargs):
             executable='create',
             arguments=['-string', Command(['xacro ', urdf_file_path, ' robot_name:=', robot_name]),
                        '-name', robot_name,
-                       '-x', '-5.0', '-y', str(-8.0 + i * 2.0), '-z', '0.1'],
+                       '-x', '0.0', '-y', str(-8.0 + i * 2.0), '-z', '0.1'],
             output='screen'
         )
 
