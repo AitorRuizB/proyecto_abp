@@ -93,7 +93,7 @@ def launch_setup(context, *args, **kwargs):
             executable='create',
             arguments=['-string', Command(['xacro ', urdf_file_path, ' robot_name:=', robot_name]),
                        '-name', robot_name,
-                       '-x', '0.0', '-y', str(-8.0 + i * 2.0), '-z', '0.1'],
+                       '-x', '0.0', '-y', str(0.0 + i * 2.0), '-z', '0.1'],
             output='screen'
         )
 
