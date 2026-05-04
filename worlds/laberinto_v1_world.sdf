@@ -1,5 +1,5 @@
 <?xml version="1.0" ?>
-<sdf version='1.10'>
+<sdf version='1.7'>
   <world name='laberinto_v1_world'>
     <plugin name='gz::sim::systems::Physics' filename='gz-sim-physics-system'/>
     <plugin name='gz::sim::systems::UserCommands' filename='gz-sim-user-commands-system'/>
@@ -1897,11 +1897,6 @@
       </link>
       <self_collide>false</self_collide>
     </model>
-    <include>
-      <uri>file://<urdf-string></uri>
-      <name>robot_0</name>
-      <pose>-8.4224705382148244 -5.0482025002068935 0.099999987757314834 -1.4201566091697106e-12 -1.7907909962379357e-09 0.9647084791638505</pose>
-    </include>
     <model name='box'>
       <pose>-8.3902304080583558 1.1417021778417589 0.49999999019962738 -2.2550975843519668e-13 -1.2746632481148104e-08 -0.0013179892932979121</pose>
       <link name='box_link'>
