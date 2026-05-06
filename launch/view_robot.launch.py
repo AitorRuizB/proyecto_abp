@@ -13,7 +13,7 @@ GZ_WORLD_FILE = 'laberinto_v1_world.sdf'
 def launch_setup(context, *args, **kwargs):
     num_robots = int(LaunchConfiguration('num_robots').perform(context))
     
-    robot_bringup_package_dir = get_package_share_directory('multirobot_bringup')
+    robot_bringup_package_dir = get_package_share_directory('proyecto_abp')
     urdf_file_path = os.path.join(robot_bringup_package_dir, 'urdf', 'my_robot.xacro')
     
     launch_nodes = []
@@ -99,7 +99,7 @@ def launch_setup(context, *args, **kwargs):
 
         # 4. Differential Drive Node (The class you provided)
         drive_node = Node(
-            package='multirobot_bringup',       # Replace with your actual package name
+            package='proyecto_abp',       # Replace with your actual package name
             executable='differential_drive', # matches the entry_point in setup.py
             namespace=robot_name,          # Launches in group /robot_i
             output='screen'
@@ -107,7 +107,7 @@ def launch_setup(context, *args, **kwargs):
 
         # 4.5 Camera Subscriber Node (Monitor camera data)
         camera_sub_node = Node(
-            package='multirobot_bringup',
+            package='proyecto_abp',
             executable='camera_subscriber',
             namespace=robot_name,
             output='screen'
@@ -191,7 +191,7 @@ def generate_launch_description():
             if '/snap/' not in p
         ])
 
-    robot_bringup_package_dir = get_package_share_directory('multirobot_bringup')
+    robot_bringup_package_dir = get_package_share_directory('proyecto_abp')
     rviz_config_path = os.path.join(robot_bringup_package_dir, 'rviz', RVIZ_FILE)
     
     # IMPORTANTE: Definimos la ruta a tu mundo personalizado

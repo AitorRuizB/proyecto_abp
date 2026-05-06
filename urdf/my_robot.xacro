@@ -147,13 +147,13 @@
   </joint>
 
   <!-- Sensores -->
-  <xacro:include filename="$(find multirobot_bringup)/urdf/lidar.xacro" />
-  <xacro:include filename="$(find multirobot_bringup)/urdf/camera.xacro" />
+  <xacro:include filename="$(find proyecto_abp)/urdf/lidar.xacro" />
+  <xacro:include filename="$(find proyecto_abp)/urdf/camera.xacro" />
 
   <xacro:lidar_sensor parent="base_link" namespace="$(arg robot_name)" origin_xyz="0.2 0 0.1" origin_rpy="0 0 0"/>
   <xacro:camera_sensor parent="base_link" namespace="$(arg robot_name)" origin_xyz="0.2 0 0.175" origin_rpy="0 0 0"/>
 
   <!-- Incluir plugins de Gazebo -->
-  <xacro:include filename="$(find multirobot_bringup)/urdf/gz_plugin.xacro" />
+  <xacro:include filename="$(find proyecto_abp)/urdf/gz_plugin.xacro" />
 
 </robot>

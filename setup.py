@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 import os
 from glob import glob
 
-package_name = 'multirobot_bringup'
+package_name = 'proyecto_abp'
 
 setup(
     name=package_name,
@@ -29,8 +29,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'differential_drive = multirobot_bringup.differentialDrive:main',
-            'camera_subscriber = multirobot_bringup.cameraSubscriber:main',
+            'differential_drive = proyecto_abp.differentialDrive:main',
+            'camera_subscriber = proyecto_abp.cameraSubscriber:main',
         ],
     },
 )
