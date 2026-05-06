@@ -16,6 +16,10 @@ class Recon:
         self.upper_purple = np.array([155, 255, 255])
         self.frame = None
 
+        # Umbrales configurables para la geometría de la puerta
+        self.umbral_y_diff = 80        # Diferencia máxima en Y para considerar que son las dos columnas de la puerta
+        self.umbral_dist_max = 300     # Distancia máxima desde el centro de masas global al centro de cada columna
+
     def set_frame(self, frame):
         """Almacena el frame actual para su procesamiento."""
         self.frame = frame
@@ -37,9 +41,149 @@ class Recon:
         return mask
     
     def compute_mask(self, mask):
-        """Logica de procesamiento de la imagen segmentada"""
-        #TODO
-        return mask
+        """Lógica de procesamiento de la imagen segmentada para detectar puerta y trampilla."""
+        if mask is None:
+            return None
+            
+        # Convertimos la máscara a BGR para poder dibujar encima a color
+        output_img = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
+        
+        # --- 1. DETECCIÓN DE LA PUERTA MEDIANTE CONTORNOS ---
+        contornos, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        contornos_validos = []
+        centroides = []
+        
+        # Filtrar ruido y calcular centros de masas
+        for c in contornos:
+            area = cv2.contourArea(c)
+            if area > 1000:  # Filtrar manchas pequeñas
+                M = cv2.moments(c)
+                if M["m00"] != 0:
+                    cx = int(M["m10"] / M["m00"])
+                    cy = int(M["m01"] / M["m00"])
+                    contornos_validos.append(c)
+                    centroides.append((cx, cy))
+
+        puerta_detectada = False
+        trampilla_detectada = False
+        centro_puerta = None
+
+        # Kernel de Prewitt para detectar bordes horizontales (gradiente en Y)
+        prewitt_y = np.array([[ 1,  1,  1],
+                              [ 0,  0,  0],
+                              [-1, -1, -1]], dtype=np.float32)
+
+        #print(f"Numero de contornos detectados: {len(contornos)} - Contornos válidos: {len(contornos_validos)}")
+        if len(contornos_validos) == 1:
+            # Caso A: Un único contorno cerrado (Puede ser la U completa o un falso positivo de columna)
+            c = contornos_validos[0]
+            x, y, w, h = cv2.boundingRect(c)
+            
+            # Extraemos la región superior (20% superior) para comprobar si existe el travesaño
+            roi_top_y_start = y
+            roi_top_y_end = y + int(h * 0.2)
+            
+            # Dibujamos la ROI de comprobación del travesaño en cian
+            cv2.rectangle(output_img, (x, roi_top_y_start), (x + w, roi_top_y_end), (255, 255, 0), 2)
+            
+            # Aplicamos Prewitt sobre esa zona superior
+            grad_y_top = cv2.filter2D(mask[roi_top_y_start:roi_top_y_end, x:x+w].astype(np.float32), -1, prewitt_y)
+            suma_gradiente_top = np.sum(np.abs(grad_y_top))
+            
+            # Umbral de travesaño: 50,000 es robusto para evitar columnas sueltas (ajustable según distancia/resolución)
+            if suma_gradiente_top > 50000:
+                puerta_detectada = True
+                centro_puerta = centroides[0]
+            else:
+                print("Falso positivo descartado (Columna vertical única)")
+            
+        elif len(contornos_validos) >= 2:
+            # Caso B: Dos columnas y puede haber o no trampilla
+            # ordenar centroides segun componente Y (priorizar columnas)
+            centroides = sorted(centroides, key=lambda c: c[1])
+            c1, c2 = centroides[0], centroides[1]
+            
+            # dibujar en amarillo los dos centros de masas detectados
+            cv2.circle(output_img, c1, 10, (0, 255, 255), -1)
+            cv2.circle(output_img, c2, 10, (0, 255, 255), -1)  
+
+            diff_y = abs(c1[1] - c2[1])
+            
+            # Centro de masas conjunto de las dos columnas
+            cx_sistema = int((c1[0] + c2[0]) / 2)
+            cy_sistema = int((c1[1] + c2[1]) / 2)
+            
+            # Distancia del centro del sistema a los centros individuales
+            dist1 = np.sqrt((cx_sistema - c1[0])**2 + (cy_sistema - c1[1])**2)
+            dist2 = np.sqrt((cx_sistema - c2[0])**2 + (cy_sistema - c2[1])**2)
+            
+            # Validar que los centros verticales son invariantes y la distancia no supera el umbral
+            vertical_center = diff_y < self.umbral_y_diff
+            close_threshold = dist1 < self.umbral_dist_max and dist2 < self.umbral_dist_max
+            if not vertical_center:
+                print(f"Falso positivo descartado (Diferencia Y demasiado grande: {diff_y}px)")
+            if not close_threshold:
+                print(f"Falso positivo descartado (Centros demasiado alejados: dist1={dist1:.2f}px, dist2={dist2:.2f}px)")
+
+            if vertical_center and close_threshold:
+                puerta_detectada = True
+                centro_puerta = (cx_sistema, cy_sistema)
+
+        # --- 2. DETECCIÓN DE TRAMPILLA, LEYENDA Y DIBUJADO GRAFICO ---
+        
+        # Añadir leyenda permanente en la esquina superior izquierda
+        cv2.rectangle(output_img, (10, 10), (220, 105), (0, 0, 0), -1)
+        cv2.rectangle(output_img, (10, 10), (220, 105), (255, 255, 255), 1) # Borde blanco
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        
+        # Leyenda 1: door_center
+        cv2.circle(output_img, (30, 35), 8, (0, 0, 255), -1)
+        cv2.putText(output_img, 'door_center', (50, 40), font, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
+        # Leyenda 2: roi hatch
+        cv2.rectangle(output_img, (22, 55), (38, 70), (0, 255, 0), 2)
+        cv2.putText(output_img, 'roi hatch', (50, 68), font, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
+        # Leyenda 3: roi top bar
+        cv2.rectangle(output_img, (22, 80), (38, 95), (255, 255, 0), 2)
+        cv2.putText(output_img, 'roi top bar', (50, 93), font, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
+
+        if puerta_detectada:
+            # Colorear el centro de masas en la imagen (círculo rojo)
+            cv2.circle(output_img, centro_puerta, 15, (0, 0, 255), -1)
+
+            # Obtener el Bounding Box global de la puerta detectada
+            puntos_todos = np.vstack(contornos_validos)
+            x, y, w, h = cv2.boundingRect(puntos_todos)
+            
+            # Extraer la región de interés (ROI): el 20% inferior del recuadro
+            roi_y_start = y + int(h * 0.8)
+            roi_y_end = y + h
+            
+            # Dibujar el rectángulo de la ROI de la trampilla en verde
+            cv2.rectangle(output_img, (x, roi_y_start), (x + w, roi_y_end), (0, 255, 0), 2)
+            
+            # Aplicar el filtro de Prewitt sobre la ROI de la máscara binaria original
+            grad_y_bottom = cv2.filter2D(mask[roi_y_start:roi_y_end, x:x+w].astype(np.float32), -1, prewitt_y)
+            suma_gradiente_bottom = np.sum(np.abs(grad_y_bottom))
+            
+            # Detección final de la trampilla (umbral calibrable)
+            if suma_gradiente_bottom > 250000:
+                trampilla_detectada = True
+
+        # --- 3. DIBUJAR ESTADO DE LA DETECCIÓN EN PANTALLA ---
+        altura, anchura = output_img.shape[:2]
+        
+        if puerta_detectada:
+            # Texto verde indicando puerta detectada
+            cv2.putText(output_img, 'PUERTA DETECTADA', (anchura - 280, 40), font, 0.7, (0, 255, 0), 2, cv2.LINE_AA)
+            if trampilla_detectada:
+                # Texto amarillo indicando la trampilla debajo del anterior
+                cv2.putText(output_img, '+ TRAMPILLA DETECTADA', (anchura - 280, 75), font, 0.7, (0, 255, 255), 2, cv2.LINE_AA)
+        else:
+            # Texto rojo si no hay nada detectado
+            cv2.putText(output_img, 'BUSCANDO...', (anchura - 180, 40), font, 0.7, (0, 0, 255), 2, cv2.LINE_AA)
+
+        return output_img
 
 class CameraProcessing(Node):
     """
@@ -55,16 +199,16 @@ class CameraProcessing(Node):
         
         # Variable para almacenar el último frame procesado de forma segura
         self.latest_mask = None
+        self.result = None
         
         # 1. CREAMOS LA VENTANA UNA SOLA VEZ AQUÍ
-        self.window_name = "Máscara de Color Morado"
+        self.window_name = "Procesamiento de Puerta/Trampilla"
         cv2.namedWindow(self.window_name, cv2.WINDOW_AUTOSIZE)
         
         # Empleamos el setter en el constructor con el topic por defecto
         self.setCameraTopic('/robot_0/camera/image')
         
         # 2. CREAMOS UN TIMER PARA LA INTERFAZ GRÁFICA (~30 FPS)
-        # Esto separa la recepción de imágenes del dibujado de OpenCV
         timer_period = 0.033  # segundos (1/30)
         self.display_timer = self.create_timer(timer_period, self.display_callback)
         
@@ -95,19 +239,19 @@ class CameraProcessing(Node):
             cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
             self.recon.set_frame(cv_image)
             
-            # Guardamos la máscara en la variable que lee el Timer
+            # Guardamos la máscara base
             self.latest_mask = self.recon.detect_color()
 
-            self.result = self.compute_mask(self.latest_mask)
+            # Computar la lógica y obtener la imagen final con el dibujado
+            self.result = self.recon.compute_mask(self.latest_mask)
                 
         except Exception as e:
             self.get_logger().error(f'Error en image_callback: {e}')
 
     def display_callback(self):
         """Se ejecuta constantemente dictado por el timer. Se encarga del refresco gráfico."""
-        if self.latest_mask is not None:
-            # 3. MOSTRAMOS LA IMAGEN EN LA VENTANA YA CREADA
-            cv2.imshow(self.window_name, self.latest_mask)
+        if self.result is not None:
+            cv2.imshow(self.window_name, self.result)
             cv2.waitKey(1)
 
 
