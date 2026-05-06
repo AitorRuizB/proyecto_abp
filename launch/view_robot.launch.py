@@ -7,7 +7,7 @@ from launch.actions import IncludeLaunchDescription, TimerAction, DeclareLaunchA
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 
-RVIZ_FILE = 'default.rviz'
+RVIZ_FILE = 'camera_feed.rviz'
 GZ_WORLD_FILE = 'laberinto_v1_world.sdf'
 
 def launch_setup(context, *args, **kwargs):
