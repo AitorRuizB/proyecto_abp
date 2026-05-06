@@ -609,6 +609,420 @@
       </link>
       <self_collide>false</self_collide>
     </model>
+    <model name='purple_carpet_north'>
+      <static>true</static>
+      <pose>0 4.5239 -0.0097 0 0 0</pose>
+      <link name='link'>
+        <collision name='collision'>
+          <geometry>
+            <box>
+              <size>1.0 1.0 0.05</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <visual name='visual'>
+          <geometry>
+            <box>
+              <size>1.0 1.0 0.05</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.5 0 0.5 1</ambient>
+            <diffuse>0.5 0 0.5 1</diffuse>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+      </link>
+      <self_collide>false</self_collide>
+    </model>
+    <model name='purple_carpet_south'>
+      <static>true</static>
+      <pose>0 -4.5239 -0.0097 0 0 0</pose>
+      <link name='link'>
+        <collision name='collision'>
+          <geometry>
+            <box>
+              <size>1.0 1.0 0.05</size>
+            </box>
+          </geometry>
+          <surface>
+            <friction>
+              <ode/>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <visual name='visual'>
+          <geometry>
+            <box>
+              <size>1.0 1.0 0.05</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.5 0 0.5 1</ambient>
+            <diffuse>0.5 0 0.5 1</diffuse>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <inertial>
+          <pose>0 0 0 0 0 0</pose>
+          <mass>1</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+        </inertial>
+        <enable_wind>false</enable_wind>
+      </link>
+      <self_collide>false</self_collide>
+    </model>
+    <model name='purple_carpet_east'>
+      <static>true</static>
+      <pose>4.5239 0 -0.0097 0 0 0</pose>
+      <link name='link'>
+        <collision name='collision'>
+          <geometry>
+            <box>
+              <size>1.0 1.0 0.05</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name='visual'>
+          <geometry>
+            <box>
+              <size>1.0 1.0 0.05</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.5 0 0.5 1</ambient>
+            <diffuse>0.5 0 0.5 1</diffuse>
+          </material>
+        </visual>
+      </link>
+      <self_collide>false</self_collide>
+    </model>
+    <model name='purple_carpet_west'>
+      <static>true</static>
+      <pose>-4.5239 0 -0.0097 0 0 0</pose>
+      <link name='link'>
+        <collision name='collision'>
+          <geometry>
+            <box>
+              <size>1.0 1.0 0.05</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name='visual'>
+          <geometry>
+            <box>
+              <size>1.0 1.0 0.05</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.5 0 0.5 1</ambient>
+            <diffuse>0.5 0 0.5 1</diffuse>
+          </material>
+        </visual>
+      </link>
+      <self_collide>false</self_collide>
+    </model>
+    <model name='roman_arch_north'>
+      <static>true</static>
+      <pose>0 4.0841 0 0 0 0</pose>
+      <link name='pillar_left'>
+        <pose>-0.75 0 1.0 0 0 0</pose>
+        <collision name='collision'>
+          <geometry>
+            <box>
+              <size>0.2 0.2 2.0</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name='visual'>
+          <geometry>
+            <box>
+              <size>0.2 0.2 2.0</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.5 0 0.5 1</ambient>
+            <diffuse>0.5 0 0.5 1</diffuse>
+          </material>
+        </visual>
+      </link>
+      <link name='pillar_right'>
+        <pose>0.75 0 1.0 0 0 0</pose>
+        <collision name='collision'>
+          <geometry>
+            <box>
+              <size>0.2 0.2 2.0</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name='visual'>
+          <geometry>
+            <box>
+              <size>0.2 0.2 2.0</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.5 0 0.5 1</ambient>
+            <diffuse>0.5 0 0.5 1</diffuse>
+          </material>
+        </visual>
+      </link>
+      <link name='arch_top'>
+        <pose>0 0 2.1 0 0 0</pose>
+        <collision name='collision'>
+          <geometry>
+            <box>
+              <size>1.7 0.2 0.2</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name='visual'>
+          <geometry>
+            <box>
+              <size>1.7 0.2 0.2</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.5 0 0.5 1</ambient>
+            <diffuse>0.5 0 0.5 1</diffuse>
+          </material>
+        </visual>
+      </link>
+      <self_collide>false</self_collide>
+    </model>
+    <model name='roman_arch_south'>
+      <static>true</static>
+      <pose>0 -4.0841 0 0 0 0</pose>
+      <link name='pillar_left'>
+        <pose>-0.75 0 1.0 0 0 0</pose>
+        <collision name='collision'>
+          <geometry>
+            <box>
+              <size>0.2 0.2 2.0</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name='visual'>
+          <geometry>
+            <box>
+              <size>0.2 0.2 2.0</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.5 0 0.5 1</ambient>
+            <diffuse>0.5 0 0.5 1</diffuse>
+          </material>
+        </visual>
+      </link>
+      <link name='pillar_right'>
+        <pose>0.75 0 1.0 0 0 0</pose>
+        <collision name='collision'>
+          <geometry>
+            <box>
+              <size>0.2 0.2 2.0</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name='visual'>
+          <geometry>
+            <box>
+              <size>0.2 0.2 2.0</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.5 0 0.5 1</ambient>
+            <diffuse>0.5 0 0.5 1</diffuse>
+          </material>
+        </visual>
+      </link>
+      <link name='arch_top'>
+        <pose>0 0 2.1 0 0 0</pose>
+        <collision name='collision'>
+          <geometry>
+            <box>
+              <size>1.7 0.2 0.2</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name='visual'>
+          <geometry>
+            <box>
+              <size>1.7 0.2 0.2</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.5 0 0.5 1</ambient>
+            <diffuse>0.5 0 0.5 1</diffuse>
+          </material>
+        </visual>
+      </link>
+      <self_collide>false</self_collide>
+    </model>
+    <model name='roman_arch_east'>
+      <static>true</static>
+      <pose>4.0841 0 0 0 0 1.5708</pose>
+      <link name='pillar_left'>
+        <pose>-0.75 0 1.0 0 0 0</pose>
+        <collision name='collision'>
+          <geometry>
+            <box>
+              <size>0.2 0.2 2.0</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name='visual'>
+          <geometry>
+            <box>
+              <size>0.2 0.2 2.0</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.5 0 0.5 1</ambient>
+            <diffuse>0.5 0 0.5 1</diffuse>
+          </material>
+        </visual>
+      </link>
+      <link name='pillar_right'>
+        <pose>0.75 0 1.0 0 0 0</pose>
+        <collision name='collision'>
+          <geometry>
+            <box>
+              <size>0.2 0.2 2.0</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name='visual'>
+          <geometry>
+            <box>
+              <size>0.2 0.2 2.0</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.5 0 0.5 1</ambient>
+            <diffuse>0.5 0 0.5 1</diffuse>
+          </material>
+        </visual>
+      </link>
+      <link name='arch_top'>
+        <pose>0 0 2.1 0 0 0</pose>
+        <collision name='collision'>
+          <geometry>
+            <box>
+              <size>1.7 0.2 0.2</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name='visual'>
+          <geometry>
+            <box>
+              <size>1.7 0.2 0.2</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.5 0 0.5 1</ambient>
+            <diffuse>0.5 0 0.5 1</diffuse>
+          </material>
+        </visual>
+      </link>
+      <self_collide>false</self_collide>
+    </model>
+    <model name='roman_arch_west'>
+      <static>true</static>
+      <pose>-4.0841 0 0 0 0 1.5708</pose>
+      <link name='pillar_left'>
+        <pose>-0.75 0 1.0 0 0 0</pose>
+        <collision name='collision'>
+          <geometry>
+            <box>
+              <size>0.2 0.2 2.0</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name='visual'>
+          <geometry>
+            <box>
+              <size>0.2 0.2 2.0</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.5 0 0.5 1</ambient>
+            <diffuse>0.5 0 0.5 1</diffuse>
+          </material>
+        </visual>
+      </link>
+      <link name='pillar_right'>
+        <pose>0.75 0 1.0 0 0 0</pose>
+        <collision name='collision'>
+          <geometry>
+            <box>
+              <size>0.2 0.2 2.0</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name='visual'>
+          <geometry>
+            <box>
+              <size>0.2 0.2 2.0</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.5 0 0.5 1</ambient>
+            <diffuse>0.5 0 0.5 1</diffuse>
+          </material>
+        </visual>
+      </link>
+      <link name='arch_top'>
+        <pose>0 0 2.1 0 0 0</pose>
+        <collision name='collision'>
+          <geometry>
+            <box>
+              <size>1.7 0.2 0.2</size>
+            </box>
+          </geometry>
+        </collision>
+        <visual name='visual'>
+          <geometry>
+            <box>
+              <size>1.7 0.2 0.2</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0.5 0 0.5 1</ambient>
+            <diffuse>0.5 0 0.5 1</diffuse>
+          </material>
+        </visual>
+      </link>
+      <self_collide>false</self_collide>
+    </model>
     <model name='hall_N_seg1_wall_W'>
       <static>true</static>
       <pose>-0.59999999999999998 6.0499999999999998 1 0 0 0</pose>
