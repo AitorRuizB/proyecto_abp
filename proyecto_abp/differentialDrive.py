@@ -13,7 +13,7 @@ class DifferentialDrive(Node):
     def publish_velocity(self):
         twist_msg = Twist()
         twist_msg.linear.x = 0.0  # Forward velocity
-        twist_msg.angular.z = 1.0  # Rotation velocity (1 rad/s)
+        twist_msg.angular.z = 0.001  # Rotation velocity (1 rad/s)
         self.publisher_.publish(twist_msg)
 
 def main(args=None):

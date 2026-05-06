@@ -98,12 +98,14 @@ def launch_setup(context, *args, **kwargs):
         )
 
         # 4. Differential Drive Node (The class you provided)
+        """
         drive_node = Node(
             package='proyecto_abp',       # Replace with your actual package name
             executable='differential_drive', # matches the entry_point in setup.py
             namespace=robot_name,          # Launches in group /robot_i
             output='screen'
         )
+        """
 
         # 4.5 Camera Subscriber Node (Monitor camera data)
         camera_sub_node = Node(
@@ -124,17 +126,6 @@ def launch_setup(context, *args, **kwargs):
             output='screen'
         )
 
-        # 6. Static TF (Connect robot_name/odom to base_link)
-        """
-        static_tf = Node(
-            package='tf2_ros',
-            executable='static_transform_publisher',
-            arguments=['--x', '0.0', '--y', '0.0', '--z', '0.0',
-                       '--yaw', '0.0', '--pitch', '0.0', '--roll', '0.0',
-                       '--frame-id', f'{robot_name}/odom', '--child-frame-id', f'{robot_name}/base_link'],
-            output='screen'
-        )
-        """
         # --- NUEVO NODO PARA RECONECTAR LA CÁMARA Y APLICAR ROTACIÓN ÓPTICA ---
         camera_tf = Node(
             package='tf2_ros',
@@ -162,10 +153,9 @@ def launch_setup(context, *args, **kwargs):
         launch_nodes.append(TimerAction(period=2.0, actions=[rsp]))  # Delay RSP start
         launch_nodes.append(TimerAction(period=2.0, actions=[jsp]))  # Delay JSP start
         launch_nodes.append(TimerAction(period=5.0 + i*2.0, actions=[spawn]))  # Increased spawn delay
-        launch_nodes.append(TimerAction(period=8.0 + i*2.0, actions=[drive_node]))  # Increased drive node delay
+        #launch_nodes.append(TimerAction(period=8.0 + i*2.0, actions=[drive_node]))  # Increased drive node delay
         launch_nodes.append(TimerAction(period=9.0 + i*2.0, actions=[camera_sub_node]))  # Increased camera delay
         launch_nodes.append(world_to_odom_tf)
-        #launch_nodes.append(static_tf)
         launch_nodes.append(camera_tf)
         launch_nodes.append(lidar_tf)
 
