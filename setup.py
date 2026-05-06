@@ -31,6 +31,7 @@ setup(
         'console_scripts': [
             'differential_drive = proyecto_abp.differentialDrive:main',
             'camera_subscriber = proyecto_abp.cameraSubscriber:main',
+            'camera_processor = proyecto_abp.cameraProcessor:main',
         ],
     },
 )
