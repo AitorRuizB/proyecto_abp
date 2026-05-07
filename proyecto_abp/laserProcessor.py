@@ -39,48 +39,48 @@ class Vfh:
         self.total_points = int(len(laser_data))
     
     def process_laser_data(self):
-            if self.laser_data is None or self.total_points == 0:
-                return
+        if self.laser_data is None or self.total_points == 0:
+            return
 
-            N = self.total_points # N puntos detectados
+        N = self.total_points # N puntos detectados
 
-            # 1. Generar array continuo asumiendo el barrido real del sensor.
-            # El sensor empieza en +90º (Izquierda), pasa por 0º (Frente),
-            # luego -90º (Derecha) y sigue hasta completar los 360º (-270º).
-            angles = np.linspace(np.pi/2, -3 * np.pi/2, N, endpoint=False)
+        # 1. Generar array continuo asumiendo el barrido real del sensor.
+        # El sensor empieza en +90º (Izquierda), pasa por 0º (Frente),
+        # luego -90º (Derecha) y sigue hasta completar los 360º (-270º).
+        angles = np.linspace(np.pi/2, -3 * np.pi/2, N, endpoint=False)
 
-            # 2. Normalizar los ángulos al rango [-pi, pi] usando la operación módulo.
-            # Esto automáticamente convierte el tramo que baja de -180º a -270º 
-            # en sus correspondientes positivos de +180º bajando a +90º.
-            angles = (angles + np.pi) % (2 * np.pi) - np.pi
+        # 2. Normalizar los ángulos al rango [-pi, pi] usando la operación módulo.
+        # Esto automáticamente convierte el tramo que baja de -180º a -270º 
+        # en sus correspondientes positivos de +180º bajando a +90º.
+        angles = (angles + np.pi) % (2 * np.pi) - np.pi
 
-            ranges = self.laser_data
+        ranges = self.laser_data
 
-            # 3. Ordenar puntos por ángulo de -pi a pi
-            sort_indices = np.argsort(angles, kind='mergesort')
-            sorted_angles = angles[sort_indices]
-            sorted_ranges = ranges[sort_indices]
+        # 3. Ordenar puntos por ángulo de -pi a pi
+        sort_indices = np.argsort(angles, kind='mergesort')
+        sorted_angles = angles[sort_indices]
+        sorted_ranges = ranges[sort_indices]
 
-            # Actualizamos la variable de la clase. Cada fila es [ángulo, distancia]
-            self.laser_points = np.column_stack((sorted_angles, sorted_ranges))
+        # Actualizamos la variable de la clase. Cada fila es [ángulo, distancia]
+        self.laser_points = np.column_stack((sorted_angles, sorted_ranges))
 
-            # 4. Actualizar el plot
-            self.ax.clear()
+        # 4. Actualizar el plot
+        self.ax.clear()
+    
+        # Pasar de radianes a grados para una visualización más intuitiva
+        sorted_angles_deg = np.degrees(sorted_angles)
         
-            # Pasar de radianes a grados para una visualización más intuitiva
-            sorted_angles_deg = np.degrees(sorted_angles)
-            
-            # Dibujar los datos usando directamente los arrays de NumPy
-            self.ax.bar(sorted_angles_deg, sorted_ranges, width=1.0)
-            self.ax.set_xlabel("Ángulo (grados)")
-            self.ax.set_ylabel("Distancia estimada (m)")
-            self.ax.set_title("Histograma de Visualización del Láser")
-            self.ax.set_xlim(sorted_angles_deg.min(), sorted_angles_deg.max())
-            self.ax.grid(True)
+        # Dibujar los datos usando directamente los arrays de NumPy
+        self.ax.bar(sorted_angles_deg, sorted_ranges, width=1.0)
+        self.ax.set_xlabel("Ángulo (grados)")
+        self.ax.set_ylabel("Distancia estimada (m)")
+        self.ax.set_title("Histograma de Visualización del Láser")
+        self.ax.set_xlim(sorted_angles_deg.min(), sorted_angles_deg.max())
+        self.ax.grid(True)
 
-            # Redibujar el canvas de la figura de forma eficiente
-            self.fig.canvas.draw_idle()
-            self.fig.canvas.flush_events()
+        # Redibujar el canvas de la figura de forma eficiente
+        self.fig.canvas.draw_idle()
+        self.fig.canvas.flush_events()
 
 # ROS node to process laser scan data
 class LaserProcessor(Node):
