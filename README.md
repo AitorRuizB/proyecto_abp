@@ -1,6 +1,6 @@
-# Multirobot Bringup
+# Sistema Multirobot para Búsqueda y Navegación
 
-A ROS2 package for managing multi-robot bringup and coordination.
+A ROS2 package to show a multi-robot solution to search and rescue parallel approach using simple designed mobile robots
 
 ## Project Structure
 
@@ -9,7 +9,7 @@ This project follows the ROS2 standard package structure:
 ```
 proyecto_abp/
 ├── src/
-│   └── multirobot_bringup/          # Python package
+│   └── proyecto_abp/          # Python package
 │       ├── __init__.py              # Package initialization
 │       └── *.py                     # Python modules
 ├── config/                          # Configuration files (YAML, etc.)
@@ -30,7 +30,7 @@ proyecto_abp/
 To build this package in a colcon workspace:
 
 ```bash
-colcon build --packages-select multirobot_bringup
+colcon build --packages-select proyecto_abp
 ```
 
 ## Running
@@ -39,7 +39,7 @@ Source the setup file and run launch files:
 
 ```bash
 source install/setup.bash
-ros2 launch multirobot_bringup view_robot.launch.py
+ros2 launch proyecto_abp main.launch.py
 ```
 
 ## Dependencies
@@ -47,6 +47,7 @@ ros2 launch multirobot_bringup view_robot.launch.py
 This package requires:
 - ROS2 (Humble or newer recommended)
 - rclpy
+- nav2
 - Standard ROS2 message types
 
 See `package.xml` for complete dependency list.

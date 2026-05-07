@@ -48,7 +48,7 @@ def launch_setup(context, *args, **kwargs):
 
     # ── 3. BUCLE POR ROBOT ────────────────────────────────────────────────────
     for i in range(1, num_robots + 1):
-        robot_name = f'robot{i}'
+        robot_name = f'robot_{i}'
         x_pose     = 0.0
         y_pose     = float((i - 1) * 1.0)
 
