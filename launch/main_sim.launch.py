@@ -28,7 +28,7 @@ def launch_setup(context, *args, **kwargs):
     # ── 1. GAZEBO ─────────────────────────────────────────────────────────────
     nodes.append(IncludeLaunchDescription(
         PythonLaunchDescriptionSource(os.path.join(pkg_gz_sim, 'launch', 'gz_sim.launch.py')),
-        launch_arguments={'gz_args': f'-r {os.path.join(pkg, "world", "world_new.sdf")}'}.items(),
+        launch_arguments={'gz_args': f'-r {os.path.join(pkg, "world", "laberinto_world.sdf")}'}.items(),
     ))
 
     # ── 2. BRIDGE GLOBAL (reloj + TF) ─────────────────────────────────────────
