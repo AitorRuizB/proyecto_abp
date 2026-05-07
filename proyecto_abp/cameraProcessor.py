@@ -159,7 +159,10 @@ class Recon:
         cv2.rectangle(output_img, (22, 80), (38, 95), (255, 255, 0), 2)
         cv2.putText(output_img, 'roi top bar', (50, 93), font, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
 
-        if puerta_detectada:
+        # Caso cuando el robot esta cerca de la puerta y puede haber trampilla
+        posible_trampilla = (len(contornos_validos) >= 2) 
+
+        if puerta_detectada or posible_trampilla:
             # Colorear el centro de masas en la imagen (círculo rojo)
             cv2.circle(output_img, centro_puerta, 15, (0, 0, 255), -1)
 
@@ -183,15 +186,15 @@ class Recon:
                 trampilla_detectada = True
 
         # --- 3. DIBUJAR ESTADO DE LA DETECCIÓN EN PANTALLA ---
-        altura, anchura = output_img.shape[:2]
+        _, anchura = output_img.shape[:2]
         
         if puerta_detectada:
             # Texto verde indicando puerta detectada
             cv2.putText(output_img, 'PUERTA DETECTADA', (anchura - 280, 40), font, 0.7, (0, 255, 0), 2, cv2.LINE_AA)
-            if trampilla_detectada:
-                # Texto amarillo indicando la trampilla debajo del anterior
-                cv2.putText(output_img, '+ TRAMPILLA DETECTADA', (anchura - 280, 75), font, 0.7, (0, 255, 255), 2, cv2.LINE_AA)
-        else:
+        if trampilla_detectada:
+            # Texto amarillo indicando la trampilla debajo del anterior
+            cv2.putText(output_img, '+ TRAMPILLA DETECTADA', (anchura - 280, 75), font, 0.7, (0, 255, 255), 2, cv2.LINE_AA)
+        if not puerta_detectada and not trampilla_detectada:
             # Texto rojo si no hay nada detectado
             cv2.putText(output_img, 'BUSCANDO...', (anchura - 180, 40), font, 0.7, (0, 0, 255), 2, cv2.LINE_AA)
 
@@ -199,7 +202,8 @@ class Recon:
         self.there_is_hallway = (puerta_detectada and trampilla_detectada)
         self.error = None  # valor por defecto si no se detecta puerta
         
-        if puerta_detectada and centro_puerta is not None:
+        # relajar caso de que haya trampilla pero este muy cerca de la puerta
+        if (puerta_detectada or trampilla_detectada) and centro_puerta is not None:
             img_width = output_img.shape[1]  # ancho de la imagen
             self.error = float(centro_puerta[0] - img_width / 2)  # componente X del error (diferencia con el centro de la imagen)
 

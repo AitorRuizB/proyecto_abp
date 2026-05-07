@@ -9,6 +9,7 @@ SCAN_TOPIC = '/scan'  # Topic del laser
 VELOCITY_TOPIC = '/cmd_vel'  # Topic para publicar comandos de velocidad
 FREQUENCY = 10.0  # Frecuencia de control en Hz
 THETA = 0.4 # rad/s
+VCONS = 0.25
 class PDController(Node):
     def __init__(self, robot_id):
         super().__init__('pd_controller')
@@ -21,6 +22,7 @@ class PDController(Node):
         self.kdLineal = 0.01 # Ganancia derivativa para el control basado en el laser
         self.previous_visual_error = 0.0
         self.previous_laser_data = None
+        self.controller_consecutive_actions_sent = 0 # detectar si ha conseguido minimizar el error visual
 
         self.robot_id = robot_id # id is a namespace like '/robot_1'
         
@@ -104,13 +106,15 @@ class PDController(Node):
         
         # Obtener velocidades de evitación de obstáculos del láser
         laser_linear_v, laser_angular_w = self.read_laser_scan()
-        
-        if not self.hallway_detected:
+        controller_success = self.controller_consecutive_actions_sent > 5 and abs(self.visual_error) == 1.0
+
+        if not self.hallway_detected and not controller_success:
             # Si no se detecta el pasillo, avanzar y girar lentamente para buscarlo
             cmd.linear.x = laser_linear_v # Usar la velocidad lineal del láser
             cmd.angular.z = THETA + laser_angular_w # Girar lentamente para buscar, más ajuste del láser
             self.cmd_vel_publisher.publish(cmd)
             self.get_logger().info('Buscando pasillo...')
+            self.controller_consecutive_actions_sent = 0
             return
         
         if self.visual_error is None:
@@ -129,10 +133,11 @@ class PDController(Node):
         control_signal = (self.kpSteering * self.visual_error) + (self.kdSteering * derivative)
         
         # Aplicar control PD visual para la velocidad angular y la velocidad lineal del láser
-        cmd.linear.x = 0.25 + laser_linear_v # Usar la velocidad lineal del láser para evitar obstáculos
+        cmd.linear.x = VCONS + laser_linear_v # Usar la velocidad lineal del láser para evitar obstáculos
         cmd.angular.z = -control_signal  # Girar en función del control PD visual, más ajuste del láser
         
         self.get_logger().info(f"VLineal: {cmd.linear.x:.2f}, Angular: {cmd.angular.z:.2f}, Error Visual: {self.visual_error:.2f}")
+        self.controller_consecutive_actions_sent += 1
 
         self.cmd_vel_publisher.publish(cmd)
         self.previous_visual_error = self.visual_error
