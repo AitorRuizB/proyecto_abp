@@ -33,6 +33,8 @@ setup(
     entry_points={
         'console_scripts': [
             'map_merge=proyecto_abp.custom_map_merger:main',
+            'send_goal=proyecto_abp.send_goal:main',
+            'start_nav = proyecto_abp.start_nav:main',
             
         ],
     },
