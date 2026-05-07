@@ -4,6 +4,10 @@ from sensor_msgs.msg import Image
 import cv_bridge
 import cv2
 import numpy as np
+from std_msgs.msg import Float32, Bool
+
+ERROR_TOPIC = '/visual_error' # float con componente X del centro de masas de la puerta detectada
+HALLWAY_TOPIC = '/hallway' # bool indicando si se ha detectado puerta y trampilla (True) o no (False)
 
 class Recon:
     """
@@ -15,10 +19,18 @@ class Recon:
         self.lower_purple = np.array([125, 50, 50])
         self.upper_purple = np.array([155, 255, 255])
         self.frame = None
+        self.there_is_hallway = False
+        self.error = None
 
         # Umbrales configurables para la geometría de la puerta
         self.umbral_y_diff = 80        # Diferencia máxima en Y para considerar que son las dos columnas de la puerta
         self.umbral_dist_max = 300     # Distancia máxima desde el centro de masas global al centro de cada columna
+
+    def get_error(self):
+        return self.error
+
+    def get_hallway_status(self):
+        return self.there_is_hallway
 
     def set_frame(self, frame):
         """Almacena el frame actual para su procesamiento."""
@@ -183,6 +195,15 @@ class Recon:
             # Texto rojo si no hay nada detectado
             cv2.putText(output_img, 'BUSCANDO...', (anchura - 180, 40), font, 0.7, (0, 0, 255), 2, cv2.LINE_AA)
 
+        # actualizar el estado del pasillo (hallway) y el error 
+        self.there_is_hallway = (puerta_detectada and trampilla_detectada)
+        self.error = None  # valor por defecto si no se detecta puerta
+        
+        if puerta_detectada and centro_puerta is not None:
+            img_width = output_img.shape[1]  # ancho de la imagen
+            self.error = float(centro_puerta[0] - img_width / 2)  # componente X del error (diferencia con el centro de la imagen)
+
+
         return output_img
 
 class CameraProcessing(Node):
@@ -190,13 +211,13 @@ class CameraProcessing(Node):
     ## Clase a alto nivel ##
     Administra el nodo y la suscripción a los topics de ROS2.
     """
-    def __init__(self):
+    def __init__(self, robot_id='/robot_0'):
         super().__init__('camera_processor')
         
         self.recon = Recon()
         self.bridge = cv_bridge.CvBridge()
         self.image_subscription = None
-        
+        self.robot_id = robot_id
         # Variable para almacenar el último frame procesado de forma segura
         self.latest_mask = None
         self.result = None
@@ -206,11 +227,15 @@ class CameraProcessing(Node):
         cv2.namedWindow(self.window_name, cv2.WINDOW_AUTOSIZE)
         
         # Empleamos el setter en el constructor con el topic por defecto
-        self.setCameraTopic('/robot_0/camera/image')
+        self.setCameraTopic(self.robot_id + '/camera/image')
         
         # 2. CREAMOS UN TIMER PARA LA INTERFAZ GRÁFICA (~30 FPS)
         timer_period = 0.033  # segundos (1/30)
         self.display_timer = self.create_timer(timer_period, self.display_callback)
+
+        # publishers para los topics de error y hallway
+        self.error_publisher_ = self.create_publisher(Float32, self.robot_id + ERROR_TOPIC, 10)
+        self.hallway_publisher_ = self.create_publisher(Bool, self.robot_id + HALLWAY_TOPIC, 10)
         
         self.get_logger().info('Nodo CameraProcessing inicializado y listo.')
 
@@ -244,6 +269,16 @@ class CameraProcessing(Node):
 
             # Computar la lógica y obtener la imagen final con el dibujado
             self.result = self.recon.compute_mask(self.latest_mask)
+
+            # Publicar los resultados en los topics correspondientes
+            error_msg = Float32()
+            hallway_msg = Bool()
+
+            error_msg.data = self.recon.get_error() if self.recon.get_error() is not None else 0.0
+            hallway_msg.data = self.recon.get_hallway_status()
+            
+            self.error_publisher_.publish(error_msg)
+            self.hallway_publisher_.publish(hallway_msg)
                 
         except Exception as e:
             self.get_logger().error(f'Error en image_callback: {e}')
