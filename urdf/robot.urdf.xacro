@@ -1,0 +1,106 @@
+<?xml version="1.0"?>
+<robot name="mi_robot_xacro" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:include filename="materials.xacro" />
+  <xacro:include filename="inercias.xacro" />
+
+  <xacro:include filename="lidar.xacro"/>
+  <xacro:include filename="camara.xacro"/>
+
+  <xacro:property name="base_largo" value="0.6" />
+  <xacro:property name="base_ancho" value="0.4" />
+  <xacro:property name="base_alto"  value="0.2" />
+  <xacro:property name="radio_rueda" value="0.1" />
+  <xacro:property name="largo_rueda" value="0.05" />
+  <xacro:property name="offset_ruedas_y" value="0.225" />
+  <xacro:property name="offset_ruedas_x" value="0.15" />
+  <xacro:property name="bajada_eje_z" value="0.1" />
+
+  <xacro:arg name="prefix" default="" />
+  
+  <xacro:include filename="plugins.xacro" />  
+
+  <link name="$(arg prefix)base_footprint"/>
+
+  <joint name="$(arg prefix)base_joint" type="fixed">
+    <parent link="$(arg prefix)base_footprint"/>
+    <child link="$(arg prefix)base_link"/>
+    <origin xyz="0 0 0.2" rpy="0 0 0"/> 
+  </joint>
+
+  <link name="$(arg prefix)base_link">
+    <visual>
+      <geometry> <box size="${base_largo} ${base_ancho} ${base_alto}"/> </geometry>
+      <material name="azul"/>
+    </visual>
+    
+    <collision>
+      <geometry> <box size="${base_largo} ${base_ancho} ${base_alto}"/> </geometry>
+    </collision>
+
+    <xacro:box_inertia m="5.0" x="${base_largo}" y="${base_ancho}" z="${base_alto}" 
+                       o_xyz="0 0 0" o_rpy="0 0 0" />
+  </link>
+
+  <xacro:macro name="rueda_macro" params="posicion y_pos">
+    <link name="$(arg prefix)rueda_${posicion}_link">
+      <visual>
+        <geometry> <cylinder radius="${radio_rueda}" length="${largo_rueda}"/> </geometry>
+        <material name="negro"/>
+        <origin rpy="1.57 0 0" xyz="0 0 0"/>
+      </visual>
+
+      <collision>
+        <geometry> <sphere radius="${radio_rueda}" /> </geometry>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+      </collision>
+
+      <xacro:cylinder_inertia m="1.0" r="${radio_rueda}" h="${largo_rueda}"
+                              o_xyz="0 0 0" o_rpy="1.57 0 0" />
+    </link>
+
+    <joint name="$(arg prefix)joint_rueda_${posicion}" type="continuous">
+      <parent link="$(arg prefix)base_link"/>
+      <child link="$(arg prefix)rueda_${posicion}_link"/>
+      <origin xyz="${offset_ruedas_x} ${y_pos} -${bajada_eje_z}" rpy="0 0 0"/>
+      <axis xyz="0 1 0"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:macro name="caster_macro" params="posicion x y z">
+    <link name="$(arg prefix)${posicion}_link">
+      <visual>
+        <geometry>
+          <sphere radius="0.05"/>
+        </geometry>
+        <material name="blanco"/>
+      </visual>
+      
+      <collision>
+        <geometry>
+          <sphere radius="0.05"/>
+        </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>0.001</mu> <mu2>0.001</mu2>
+            </ode>
+          </friction>
+        </surface>
+      </collision>
+
+      <xacro:sphere_inertia m="0.5" r="0.05" o_xyz="0 0 0" o_rpy="0 0 0" />
+    </link>
+
+    <joint name="$(arg prefix)joint_${posicion}" type="fixed">
+      <parent link="$(arg prefix)base_link"/>
+      <child link="$(arg prefix)${posicion}_link"/>
+      <origin xyz="${x} ${y} ${z}" rpy="0 0 0"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:rueda_macro posicion="derecha" y_pos="-${offset_ruedas_y}" />
+  <xacro:rueda_macro posicion="izquierda" y_pos="${offset_ruedas_y}" />
+  <xacro:caster_macro posicion="caster" x="-0.2" y="0" z="-0.15" />
+
+</robot>
