@@ -23,7 +23,8 @@ class PDController(Node):
         self.previous_visual_error = 0.0
         self.previous_laser_data = None
         self.controller_consecutive_actions_sent = 0 # detectar si ha conseguido minimizar el error visual
-
+        self.controller_successful = False #flag para dejar de buscar pq se localizo el pasillo y el controlador funciono
+        
         self.robot_id = robot_id # id is a namespace like '/robot_1'
         
         # Suscripción a los topics de la cámara
@@ -106,24 +107,18 @@ class PDController(Node):
         
         # Obtener velocidades de evitación de obstáculos del láser
         laser_linear_v, laser_angular_w = self.read_laser_scan()
-        controller_success = self.controller_consecutive_actions_sent > 5 and abs(self.visual_error) == 1.0
+        controller_success = self.controller_consecutive_actions_sent > 5 and abs(self.previous_visual_error) == 1.0
 
-        if not self.hallway_detected and not controller_success:
+        if controller_success: 
+            self.controller_successful = True
+
+        if not self.hallway_detected and not self.controller_successful:
             # Si no se detecta el pasillo, avanzar y girar lentamente para buscarlo
             cmd.linear.x = laser_linear_v # Usar la velocidad lineal del láser
             cmd.angular.z = THETA + laser_angular_w # Girar lentamente para buscar, más ajuste del láser
             self.cmd_vel_publisher.publish(cmd)
             self.get_logger().info('Buscando pasillo...')
             self.controller_consecutive_actions_sent = 0
-            return
-        
-        if self.visual_error is None:
-            # Si el pasillo está detectado pero no hay error visual (ej. puerta no visible),
-            # mantener la velocidad lineal y girar para buscar el centro.
-            cmd.linear.x = laser_linear_v
-            cmd.angular.z = laser_angular_w # Podría ser un giro muy lento o 0
-            self.cmd_vel_publisher.publish(cmd)
-            self.get_logger().info('Pasillo detectado, pero error visual no disponible. Manteniendo posición.')
             return
         
         # Calcular el error y la derivada del error
