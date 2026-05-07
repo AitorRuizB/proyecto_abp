@@ -29,10 +29,10 @@
 
     <gazebo reference="lidar_link">
       <sensor name="gpu_lidar" type="gpu_lidar">
-        <pose relative_to='lidar_link'>0 0 0 0 0 0</pose>
+        <pose relative_to='lidar_link'>0 0 0 0 0 1.5708</pose>
         
         <topic>/${namespace}/scan</topic>
-        <update_rate>2</update_rate>
+        <update_rate>10</update_rate>
         
         <lidar>
           <scan>

@@ -210,7 +210,7 @@ class Recon:
 
         return output_img
 
-class CameraProcessing(Node):
+class CameraProcessor(Node):
     """
     ## Clase a alto nivel ##
     Administra el nodo y la suscripción a los topics de ROS2.
@@ -218,7 +218,7 @@ class CameraProcessing(Node):
     def __init__(self, robot_id='/robot_0'):
         super().__init__('camera_processor')
         
-        self.recon = Recon()
+        self.recon = Recon() # A CameraProcessor uses a Recon para el procesamiento de imagen
         self.bridge = cv_bridge.CvBridge()
         self.image_subscription = None
         self.robot_id = robot_id
@@ -241,7 +241,7 @@ class CameraProcessing(Node):
         self.error_publisher_ = self.create_publisher(Float32, self.robot_id + ERROR_TOPIC, 10)
         self.hallway_publisher_ = self.create_publisher(Bool, self.robot_id + HALLWAY_TOPIC, 10)
         
-        self.get_logger().info('Nodo CameraProcessing inicializado y listo.')
+        self.get_logger().info('Nodo CameraProcessor inicializado y listo.')
 
     def setCameraTopic(self, topic: str):
         """
@@ -299,7 +299,7 @@ def main(args=None):
     node = None
     
     try:
-        node = CameraProcessing()
+        node = CameraProcessor()
         rclpy.spin(node)
     except KeyboardInterrupt:
         if node:
