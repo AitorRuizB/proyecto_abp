@@ -6,3 +6,5 @@ log/*
 # Ignorar artefactos de Python
 **/__pycache__/
 *.pyc
+# Csvs de datos de simulacion
+proyecto_abp/csv/*

@@ -3,6 +3,9 @@ from rclpy.node import Node
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Float32, Bool
 from sensor_msgs.msg import LaserScan
+import csv
+import os
+from datetime import datetime
 from cameraProcessor import ERROR_TOPIC as VISUAL_ERROR_TOPIC, HALLWAY_TOPIC
 from laserProcessor import ERROR_TOPIC as LASER_ERROR_TOPIC, OBSTACLE_TOPIC
 
@@ -39,7 +42,7 @@ class PDController(Node):
         self.visualPD_gains = PDControllerParams(kp=0.001, kd=0.0005, sensor_type='visual', is_steering=True)
         self.laserPD_gains = [
             PDControllerParams(kp=1.0, kd=0.0, sensor_type='laser', is_steering=False),
-            PDControllerParams(kp=0.5, kd=0.01, sensor_type='laser', is_steering=True)
+            PDControllerParams(kp=1.0, kd=0.01, sensor_type='laser', is_steering=True)
         ]
 
         self.previous_visual_error = 0.0
@@ -67,6 +70,25 @@ class PDController(Node):
         # Timer para el bucle de control principal
         self.timer = self.create_timer(1.0 / FREQUENCY, self.control_loop) # Ejecutar el bucle de control a 10 Hz
         
+        # --- INICIO: Configuración para guardado en CSV ---
+        # Crear un nombre de archivo único para el log
+        robot_name = self.robot_id.strip('/') # Eliminar la barra inicial para el nombre de archivo
+        timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        # Directorio para guardar los CSV
+        csv_dir = "csv"
+        os.makedirs(csv_dir, exist_ok=True)
+        csv_filepath = os.path.join(csv_dir, f"pd_controller_log_{robot_name}_{timestamp_str}.csv")
+        
+        # Abrir el archivo y crear el writer
+        self.csv_file = open(csv_filepath, 'w', newline='')
+        self.csv_writer = csv.writer(self.csv_file)
+        
+        # Escribir la cabecera
+        self.csv_writer.writerow(['timestamp', 'laser_error', 'control_law', 'control_law_source'])
+        self.get_logger().info(f"Guardando datos de control en: {csv_filepath}")
+        # --- FIN: Configuración para guardado en CSV ---
+        
         self.get_logger().info(f'PDController para {self.robot_id} inicializado.')
 
     def visual_error_callback(self, msg):
@@ -90,7 +112,11 @@ class PDController(Node):
         Calcular mediante Vfh la ley de control para direccion
         Retorna (velocidad_lineal, velocidad_angular_adicional_por_obstaculo).
         """
-        
+
+    def csv_data_saving(self, timestamp, laser_error, control_law, control_law_source):
+        """Guarda una fila de datos en el archivo CSV."""
+        self.csv_writer.writerow([timestamp, laser_error, control_law, control_law_source])
+    
     
     def control_loop(self):
         """Bucle de control principal que se ejecuta periódicamente."""
@@ -105,13 +131,14 @@ class PDController(Node):
         if controller_success: 
             self.controller_successful = True
 
+        self.control_law_source = 'None'
         # Estado de wander & search: usar ley de control del Laser
         if (not self.hallway_detected and not self.controller_successful) or self.there_is_obstacle:
             # Controlador proporcional de velocidad lineal
             cmd.linear.x = VCONS * self.laserPD_gains[0].getKp() # controlador porporcional de velocidad lineal
             # Controlador PD para steering
             control_law = (self.laserPD_gains[1].getKp() * self.laser_error) + (self.laserPD_gains[1].getKd() * (self.laser_error - self.previous_laser_error) * FREQUENCY)
-            
+            self.control_law_source = 'Laser'
             self.get_logger().info('Buscando pasillo...')
             self.controller_consecutive_actions_sent = 0
             
@@ -121,9 +148,17 @@ class PDController(Node):
             derivative = (self.visual_error - self.previous_visual_error) * FREQUENCY
             # Calcular la señal de control PD
             control_law = (self.visualPD_gains.getKp() * self.visual_error) + (self.visualPD_gains.getKd() * derivative)
-            
-        # Asginar steering
+            self.control_law_source = 'Visual'
+
+        # Asignar steering
         cmd.angular.z = -control_law
+
+        # --- INICIO: Guardado de datos en CSV ---
+        current_time = self.get_clock().now()
+        timestamp_sec = current_time.nanoseconds / 1e9
+        self.csv_data_saving(timestamp_sec, self.laser_error, control_law, self.control_law_source)
+        # --- FIN: Guardado de datos en CSV ---
+
         self.get_logger().info(f"VLineal: {cmd.linear.x:.2f}, Angular: {cmd.angular.z:.2f}, Error Visual: {self.visual_error:.2f}, Error Laser: {self.laser_error:.2f}, Obstacle?: {self.there_is_obstacle}")
         self.controller_consecutive_actions_sent += 1
 
@@ -131,6 +166,13 @@ class PDController(Node):
         # actualizar error de los sensores
         self.previous_visual_error = self.visual_error
         self.previous_laser_error = self.laser_error
+
+    def destroy_node(self):
+        """Limpia recursos, como cerrar el archivo CSV, antes de que el nodo se destruya."""
+        if hasattr(self, 'csv_file') and self.csv_file:
+            self.get_logger().info("Cerrando archivo CSV.")
+            self.csv_file.close()
+        super().destroy_node()
 
 # -------------------------------- ZONA DE PRUEBAS DEL CONTROLADOR PD ------------------------------------------
 def main(args=None):

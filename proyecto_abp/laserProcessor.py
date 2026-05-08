@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 SCAN_TOPIC = '/scan'  # Topic del laser
 ERROR_TOPIC = '/laser_error' # Topic para publicar el error del laser (distancia al obstáculo más cercano)
 OBSTACLE_TOPIC = '/obstacle_detected' # Topic para publicar si se ha detectado un obstáculo cercano (bool)
-OBSTACLE_THRESHOLD = 1 # Distancia umbral para considerar que hay un obstáculo cercano (en metros)
+OBSTACLE_THRESHOLD = 1.0 # Distancia umbral para considerar que hay un obstáculo cercano (en metros)
 
 # LaserPoint representa un punto detectado por el láser con su ángulo y distancia
 class LaserPoint:
@@ -39,8 +39,8 @@ class Vfh:
         self.obstacle_probabilities = None # Array 2D of [angle, probability] para cada punto del laser, donde la probabilidad se calcula a partir de la distancia usando una función sigmoide
         self.prob_occupied_threshold = 0.5 # probabilidad minima para considerar un punto como ocupado (obstáculo) 
         self.G = 0.0 # funcion de coste a minimizar (error steering) 
-        self.target_gain = 0.75 # ganancia para el término del objetivo (ir recto)
-        self.previous_direction_gain = 0.25 # ganancia para el término de dirección previa (evitar cambios bruscos)
+        self.target_gain = 0.9 # ganancia para el término del objetivo (ir recto)
+        self.previous_direction_gain = 0.7 # ganancia para el término de dirección previa (evitar cambios bruscos)
         self.goal_direction = 0.0 # dirección objetivo segura (en radianes), por defecto 0 para ir recto
 
         self.dynamic_plot = dynamic_plot
@@ -173,15 +173,13 @@ class Vfh:
         
         return True
 
-    def compute_cost_function(self, target=0):# target en radianes, por defecto 0 para ir recto
+    def compute_cost_function(self):# target en radianes, por defecto 0 para ir recto
         if self.laser_points.size == 0:
             self.G = 0.0
             return self.G
 
         # comprobar si hay puntos bajo del umbral para detectar obstáculos dentro de la vecindad
-        self.there_is_obstacle = bool(np.any((self.laser_points[:,1] < OBSTACLE_THRESHOLD) & (np.abs(self.laser_points[:,0] - target) < np.radians(self.neighbourhood_size))))
-
-        selected_direction = target  # Por defecto, ir hacia el objetivo si no hay obstáculos o rutas seguras
+        self.there_is_obstacle = bool(np.any((self.laser_points[:,1] < OBSTACLE_THRESHOLD) & (np.abs(self.laser_points[:,0] - self.goal_direction) < np.radians(self.neighbourhood_size))))
 
         # Calcular función de costo basada en probabilidad de ocupacion 
         if self.calcular_probabilidades_ocupacion():
@@ -207,18 +205,18 @@ class Vfh:
                         gap_angles = self.obstacle_probabilities[gap, 0]
                         median_angle = np.median(gap_angles)
                         # Diferencia angular robusta (maneja el salto de -pi a +pi)
-                        angle_diff = np.arctan2(np.sin(median_angle - target), np.cos(median_angle - target))
+                        angle_diff = np.arctan2(np.sin(median_angle - self.goal_direction), np.cos(median_angle - self.goal_direction))
                         if abs(angle_diff) < min_angle_diff:
                             min_angle_diff = abs(angle_diff)
                             selected_direction = median_angle # Escoger el ángulo mediano como dirección
-                            print(f"Selected direction: {np.degrees(selected_direction):.2f}º")
 
         # Inicializar la dirección previa si es la primera vez
         if self.previous_direction is None:
-            self.previous_direction = target
+            self.previous_direction = selected_direction  # Por defecto, ir hacia el objetivo si no hay obstáculos o rutas seguras
+
 
         # Calcular la función de coste para un giro suave
-        target_error = (selected_direction - target)
+        target_error = (selected_direction - self.goal_direction)
         continuity_error = (selected_direction - self.previous_direction)
 
         self.G = self.target_gain * target_error + self.previous_direction_gain * continuity_error
