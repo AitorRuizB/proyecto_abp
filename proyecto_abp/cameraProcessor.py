@@ -1,10 +1,11 @@
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
+from std_msgs.msg import Float32, Bool
 import cv_bridge
 import cv2
 import numpy as np
-from std_msgs.msg import Float32, Bool
+
 
 ERROR_TOPIC = '/visual_error' # float con componente X del centro de masas de la puerta detectada
 HALLWAY_TOPIC = '/hallway' # bool indicando si se ha detectado puerta y trampilla (True) o no (False)

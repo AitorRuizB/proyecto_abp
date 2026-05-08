@@ -1,18 +1,22 @@
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import LaserScan
+from std_msgs.msg import Float32, Bool
 import numpy as np
 import matplotlib.pyplot as plt
 
 
 
 SCAN_TOPIC = '/scan'  # Topic del laser
+ERROR_TOPIC = '/laser_error' # Topic para publicar el error del laser (distancia al obstáculo más cercano)
+OBSTACLE_TOPIC = '/obstacle_detected' # Topic para publicar si se ha detectado un obstáculo cercano (bool)
+OBSTACLE_THRESHOLD = 1 # Distancia umbral para considerar que hay un obstáculo cercano (en metros)
 
 # LaserPoint representa un punto detectado por el láser con su ángulo y distancia
 class LaserPoint:
     def __init__(self, angle, distance):
-        self.angle = angle
-        self.distance = distance
+        self.angle = angle # rad
+        self.distance = distance 
     
     def getAngle(self):
         return self.angle
@@ -23,16 +27,27 @@ class LaserPoint:
 
 # Vector Field Histogram (VFH) para evitar obstáculos basado en el láser
 class Vfh:
-    def __init__(self):
+    def __init__(self, dynamic_plot=False):
         self.histogram = None
         self.laser_data = None # raw data del laser
 
         self.laser_points = np.empty((0,2)) # Array 2D of LaserPoints
         self.total_points = 0 # int 
-        # Habilitar modo interactivo para que el plot no bloquee el programa
-        plt.ion()
-        self.fig = plt.figure()
-        self.ax = self.fig.add_subplot(111)
+        self.previous_direction = None # direccion seleccionada antes [-180º, +180º]
+        self.there_is_obstacle = False # bool indicando si hay un obstáculo cercano según el umbral
+        self.neighbourhood_size = 20 # tamaño de la vecindad en grados para calcular apertura libre
+        self.laser_probabilities = None # Array 2D of [angle, probability] para cada punto del laser, donde la probabilidad se calcula a partir de la distancia usando una función sigmoide
+        self.prob_occupied_threshold = 0.5 # probabilidad minima para considerar un punto como ocupado (obstáculo) 
+        self.G = 0.0 # funcion de coste a minimizar (error steering) 
+        self.target_gain = 0.75 # ganancia para el término del objetivo (ir recto)
+        self.previous_direction_gain = 0.25 # ganancia para el término de dirección previa (evitar cambios bruscos)
+
+        self.dynamic_plot = dynamic_plot
+        if self.dynamic_plot:
+            # Habilitar modo interactivo para que el plot no bloquee el programa
+            plt.ion()
+            self.fig = plt.figure()
+            self.ax = self.fig.add_subplot(111)
 
     def set_laser_data(self, laser_data):
         self.laser_data = np.array(laser_data)
@@ -64,29 +79,121 @@ class Vfh:
         # Actualizamos la variable de la clase. Cada fila es [ángulo, distancia]
         self.laser_points = np.column_stack((sorted_angles, sorted_ranges))
 
-        # 4. Actualizar el plot
-        self.ax.clear()
+        if self.dynamic_plot:
+            # 4. Actualizar el plot
+            self.ax.clear()
     
-        # Pasar de radianes a grados para una visualización más intuitiva
-        sorted_angles_deg = np.degrees(sorted_angles)
+            # Pasar de radianes a grados para una visualización más intuitiva
+            sorted_angles_deg = np.degrees(sorted_angles)
+            
+            # Dibujar los datos usando directamente los arrays de NumPy
+            self.ax.bar(sorted_angles_deg, sorted_ranges, width=1.0)
+            self.ax.set_xlabel("Ángulo (grados)")
+            self.ax.set_ylabel("Distancia estimada (m)")
+            self.ax.set_title("Histograma de Visualización del Láser (Vista Frontal)")
+            # Aumentar resolución para la vista frontal (-90º a +90º)
+            self.ax.set_xlim(-90, 90)
+            # Aumentar resolución vertical para ver mejor los obstáculos cercanos
+            self.ax.set_ylim(0, 5) # Mostrar hasta 5 metros
+            self.ax.grid(True)
+
+            # Redibujar el canvas de la figura de forma eficiente
+            self.fig.canvas.draw_idle()
+            self.fig.canvas.flush_events()
+
+    def calcular_probabilidades_ocupacion(self):
+        """
+        Esto convierte distancias cercanas a valores cercanos a 1 (ocupado)
+        y distancias lejanas a valores cercanos a 0 (libre), con una transición suave alrededor del umbral.
+        La función sigmoide se define como: S(d) = 1 / (1 + exp(-k*(d - d0)))
+        donde k controla la pendiente de la transición y d0 es el punto medio (umbral).
+        """
+        if self.laser_points.size == 0 or not self.there_is_obstacle:
+            return False  
+        k = 10 # pendiente de la función sigmoide
+        d0 = OBSTACLE_THRESHOLD # punto medio en el umbral
+        probabilities = 1 / (1 + np.exp(-k * (self.laser_points[:,1] - d0)))
+        # invertir para que valores altos de P represneten un obstaculo cercano
+        probabilities = 1 - probabilities
+        self.obstacle_probabilities = np.column_stack((self.laser_points[:,0], probabilities))
+
+        if self.dynamic_plot:
+            # Plotear las probabilidades de ocupación en un gráfico separado
+            plt.figure(2)
+            plt.clf()
+            plt.plot(np.degrees(self.obstacle_probabilities[:,0]), self.obstacle_probabilities[:,1], marker='o')
+            plt.xlabel("Ángulo (grados)")
+            plt.ylabel("Probabilidad de Ocupación")
+            plt.title("Probabilidades de Ocupación del Láser")
+            plt.xlim(-90, 90)
+            plt.ylim(0, 1)
+            plt.grid(True)
+            plt.draw()
+            plt.pause(0.001)
         
-        # Dibujar los datos usando directamente los arrays de NumPy
-        self.ax.bar(sorted_angles_deg, sorted_ranges, width=1.0)
-        self.ax.set_xlabel("Ángulo (grados)")
-        self.ax.set_ylabel("Distancia estimada (m)")
-        self.ax.set_title("Histograma de Visualización del Láser")
-        self.ax.set_xlim(sorted_angles_deg.min(), sorted_angles_deg.max())
-        self.ax.grid(True)
+        return True
 
-        # Redibujar el canvas de la figura de forma eficiente
-        self.fig.canvas.draw_idle()
-        self.fig.canvas.flush_events()
+    def compute_cost_function(self, target=0):# target en radianes, por defecto 0 para ir recto
+        if self.laser_points.size == 0:
+            self.G = 0.0
+            return self.G
 
+        # comprobar si hay puntos bajo del umbral para detectar obstáculos dentro de la vecindad
+        self.there_is_obstacle = bool(np.any((self.laser_points[:,1] < OBSTACLE_THRESHOLD) & (np.abs(self.laser_points[:,0] - target) < np.radians(self.neighbourhood_size))))
+
+        selected_direction = target  # Por defecto, ir hacia el objetivo si no hay obstáculos o rutas seguras
+
+        # Calcular función de costo basada en probabilidad de ocupacion 
+        if self.calcular_probabilidades_ocupacion():
+            # 1. Encontrar índices de puntos con baja probabilidad de ocupación 
+            low_prob_indices = np.where(self.obstacle_probabilities[:, 1] < self.prob_occupied_threshold)[0]
+
+            if low_prob_indices.size > 0:
+                # 2. Agrupar índices consecutivos en "huecos" o "valles"
+                gaps = np.split(low_prob_indices, np.where(np.diff(low_prob_indices) != 1)[0] + 1)
+
+                # 3. Filtrar los huecos que son suficientemente anchos
+                angle_increment_rad = (2 * np.pi) / self.total_points if self.total_points > 0 else 0.1
+                min_gap_width_rad = np.radians(2 * self.neighbourhood_size)
+                min_gap_width_points = int(min_gap_width_rad / angle_increment_rad) if angle_increment_rad > 0 else 20
+
+                valid_gaps = [g for g in gaps if len(g) >= min_gap_width_points]
+
+                if valid_gaps:
+                    # Encontrar el mejor hueco (el más cercano a la dirección objetivo)
+                    min_angle_diff = float('inf')
+
+                    for gap in valid_gaps:
+                        gap_angles = self.obstacle_probabilities[gap, 0]
+                        median_angle = np.median(gap_angles)
+                        # Diferencia angular robusta (maneja el salto de -pi a +pi)
+                        angle_diff = np.arctan2(np.sin(median_angle - target), np.cos(median_angle - target))
+                        if abs(angle_diff) < min_angle_diff:
+                            min_angle_diff = abs(angle_diff)
+                            selected_direction = median_angle # Escoger el ángulo mediano como dirección
+                            print(f"Selected direction: {np.degrees(selected_direction):.2f}º")
+
+        # Inicializar la dirección previa si es la primera vez
+        if self.previous_direction is None:
+            self.previous_direction = target
+
+        # Calcular la función de coste para un giro suave
+        target_error = (selected_direction - target)
+        continuity_error = (selected_direction - self.previous_direction)
+
+        self.G = self.target_gain * target_error + self.previous_direction_gain * continuity_error
+        self.previous_direction = selected_direction # Actualizar para la siguiente iteración
+        return self.G
+
+    def obstacle_detected(self):
+        return self.there_is_obstacle
+
+        
 # ROS node to process laser scan data
 class LaserProcessor(Node):
     def __init__(self, robot_id='/robot_0'):
         super().__init__('laser_processor')
-        self.vfh = Vfh() # A LaserProcessor uses a Vfh
+        self.vfh = Vfh(True) # A LaserProcessor uses a Vfh
         self.robot_id = robot_id
         # Subscribe to laser scan
         self.laser_subscription = self.create_subscription(
@@ -95,6 +202,10 @@ class LaserProcessor(Node):
             self.laser_callback,
             10
         )
+        # publisher
+        self.laser_error_publisher = self.create_publisher(Float32, self.robot_id + ERROR_TOPIC, 10)
+        self.obstacle_publisher = self.create_publisher(Bool, self.robot_id + OBSTACLE_TOPIC, 10)
+
         
         
         self.get_logger().info(f'Laser processor initialized for {self.robot_id}')
@@ -107,6 +218,17 @@ class LaserProcessor(Node):
         # procesado de datos del laser para evitar obstáculos
         self.vfh.set_laser_data(msg.ranges)
         self.vfh.process_laser_data()
+
+        #if not self.vfh.dynamic_plot:
+        Float32_msg = Float32()
+        Bool_msg = Bool()
+
+        Float32_msg.data = self.vfh.compute_cost_function()
+        Bool_msg.data = self.vfh.obstacle_detected()
+
+        # publish the topics
+        self.laser_error_publisher.publish(Float32_msg)
+        self.obstacle_publisher.publish(Bool_msg)
 
 def main(args=None):
     rclpy.init(args=args)
