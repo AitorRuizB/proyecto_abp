@@ -261,7 +261,7 @@ class LaserProcessor(Node):
         Float32_msg = Float32()
         Bool_msg = Bool()
 
-        Float32_msg.data = self.vfh.compute_cost_function(self.vfh.goal_direction) # El objetivo seguro es ir recto (0 radianes), pero la función de coste ya considera la dirección previa para evitar cambios bruscos
+        Float32_msg.data = self.vfh.compute_cost_function()
         Bool_msg.data = self.vfh.obstacle_detected()
 
         # publish the topics
