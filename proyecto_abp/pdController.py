@@ -39,7 +39,7 @@ class PDController(Node):
         self.visualPD_gains = PDControllerParams(kp=0.001, kd=0.0005, sensor_type='visual', is_steering=True)
         self.laserPD_gains = [
             PDControllerParams(kp=1.0, kd=0.0, sensor_type='laser', is_steering=False),
-            PDControllerParams(kp=0.05, kd=0.01, sensor_type='laser', is_steering=True)
+            PDControllerParams(kp=0.5, kd=0.01, sensor_type='laser', is_steering=True)
         ]
 
         self.previous_visual_error = 0.0
@@ -94,6 +94,9 @@ class PDController(Node):
     
     def control_loop(self):
         """Bucle de control principal que se ejecuta periódicamente."""
+        if self.laser_error is None or self.visual_error is None:
+            return
+        
         cmd = Twist()
         cmd.linear.x = VCONS  # Usar la velocidad lineal del láser para evitar obstáculos
         

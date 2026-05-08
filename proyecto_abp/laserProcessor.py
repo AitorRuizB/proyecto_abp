@@ -36,11 +36,12 @@ class Vfh:
         self.previous_direction = None # direccion seleccionada antes [-180º, +180º]
         self.there_is_obstacle = False # bool indicando si hay un obstáculo cercano según el umbral
         self.neighbourhood_size = 20 # tamaño de la vecindad en grados para calcular apertura libre
-        self.laser_probabilities = None # Array 2D of [angle, probability] para cada punto del laser, donde la probabilidad se calcula a partir de la distancia usando una función sigmoide
+        self.obstacle_probabilities = None # Array 2D of [angle, probability] para cada punto del laser, donde la probabilidad se calcula a partir de la distancia usando una función sigmoide
         self.prob_occupied_threshold = 0.5 # probabilidad minima para considerar un punto como ocupado (obstáculo) 
         self.G = 0.0 # funcion de coste a minimizar (error steering) 
         self.target_gain = 0.75 # ganancia para el término del objetivo (ir recto)
         self.previous_direction_gain = 0.25 # ganancia para el término de dirección previa (evitar cambios bruscos)
+        self.goal_direction = 0.0 # dirección objetivo segura (en radianes), por defecto 0 para ir recto
 
         self.dynamic_plot = dynamic_plot
         if self.dynamic_plot:
@@ -93,6 +94,11 @@ class Vfh:
             self.ax.set_title("Histograma de Visualización del Láser (Vista Frontal)")
             # Aumentar resolución para la vista frontal (-90º a +90º)
             self.ax.set_xlim(-90, 90)
+            # Añadir barras verticales entorno a self.neighbourhood_size para visualizar la vecindad de análisis
+            self.ax.axvline(x=np.degrees(self.goal_direction), color='r', linestyle='--', label='Dirección Objetivo')
+            self.ax.axvline(x=np.degrees(self.goal_direction) - self.neighbourhood_size, color='k', linestyle='--', label='Vecindad Izquierda')
+            self.ax.axvline(x=np.degrees(self.goal_direction) + self.neighbourhood_size, color='k', linestyle='--', label='Vecindad Derecha')
+            self.ax.legend()
             # Aumentar resolución vertical para ver mejor los obstáculos cercanos
             self.ax.set_ylim(0, 5) # Mostrar hasta 5 metros
             self.ax.grid(True)
@@ -108,7 +114,7 @@ class Vfh:
         La función sigmoide se define como: S(d) = 1 / (1 + exp(-k*(d - d0)))
         donde k controla la pendiente de la transición y d0 es el punto medio (umbral).
         """
-        if self.laser_points.size == 0 or not self.there_is_obstacle:
+        if self.laser_points.size == 0:
             return False  
         k = 10 # pendiente de la función sigmoide
         d0 = OBSTACLE_THRESHOLD # punto medio en el umbral
@@ -116,6 +122,40 @@ class Vfh:
         # invertir para que valores altos de P represneten un obstaculo cercano
         probabilities = 1 - probabilities
         self.obstacle_probabilities = np.column_stack((self.laser_points[:,0], probabilities))
+
+        # TODO: seleccionar en una vecindad self.neighbourhood_size el valor mediano con la probabilidad más baja
+        if not self.there_is_obstacle:
+            # Heurística para encontrar la dirección más segura (el "valle" con menor probabilidad de ocupación)
+            # cuando no hay un obstáculo inminente. Se busca la región más "despejada".
+            
+            # 1. Definir el tamaño de la ventana de análisis en número de puntos del láser
+            angle_increment_rad = (2 * np.pi) / self.total_points if self.total_points > 0 else 0.1
+            window_size_rad = np.radians(self.neighbourhood_size)
+            window_size_points = int(window_size_rad / angle_increment_rad) if angle_increment_rad > 0 else 20
+            
+            # Asegurar que la ventana tenga un tamaño impar para tener un punto central
+            if window_size_points % 2 == 0:
+                window_size_points += 1
+
+            # 2. Calcular la media móvil de las probabilidades para suavizar y encontrar la región más baja
+            probabilities = self.obstacle_probabilities[:, 1]
+            rolling_mean_probs = np.convolve(probabilities, np.ones(window_size_points) / window_size_points, mode='valid')
+
+            if rolling_mean_probs.size > 0:
+                # 3. Encontrar el índice de la ventana con la media de probabilidad más baja
+                min_mean_idx = np.argmin(rolling_mean_probs)
+                
+                # 4. Obtener los ángulos de esa ventana y calcular su mediana para la selección final, que es más robusta
+                start_idx = min_mean_idx
+                end_idx = min_mean_idx + window_size_points
+                best_window_angles = self.obstacle_probabilities[start_idx:end_idx, 0]
+                self.goal_direction = np.median(best_window_angles)
+            else:
+                # Si no se pudo calcular, ir recto por defecto
+                self.goal_direction = 0.0
+        else:
+            # Si hay un obstáculo cercano, el objetivo por defeto es ir recto para sortearlo
+            self.goal_direction = 0.0
 
         if self.dynamic_plot:
             # Plotear las probabilidades de ocupación en un gráfico separado
@@ -223,7 +263,7 @@ class LaserProcessor(Node):
         Float32_msg = Float32()
         Bool_msg = Bool()
 
-        Float32_msg.data = self.vfh.compute_cost_function()
+        Float32_msg.data = self.vfh.compute_cost_function(self.vfh.goal_direction) # El objetivo seguro es ir recto (0 radianes), pero la función de coste ya considera la dirección previa para evitar cambios bruscos
         Bool_msg.data = self.vfh.obstacle_detected()
 
         # publish the topics
