@@ -39,8 +39,8 @@ class Vfh:
         self.obstacle_probabilities = None # Array 2D of [angle, probability] para cada punto del laser, donde la probabilidad se calcula a partir de la distancia usando una función sigmoide
         self.prob_occupied_threshold = 0.5 # probabilidad minima para considerar un punto como ocupado (obstáculo) 
         self.G = 0.0 # funcion de coste a minimizar (error steering) 
-        self.target_gain = 0.9 # ganancia para el término del objetivo (ir recto)
-        self.previous_direction_gain = 0.7 # ganancia para el término de dirección previa (evitar cambios bruscos)
+        self.target_gain = 0.95 # ganancia para el término del objetivo (ir recto)
+        self.previous_direction_gain = 0.9 # ganancia para el término de dirección previa (evitar cambios bruscos)
         self.goal_direction = 0.0 # dirección objetivo segura (en radianes), por defecto 0 para ir recto
 
         self.dynamic_plot = dynamic_plot

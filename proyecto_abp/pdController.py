@@ -2,7 +2,6 @@ import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Float32, Bool
-from sensor_msgs.msg import LaserScan
 import csv
 import os
 from datetime import datetime
@@ -41,8 +40,8 @@ class PDController(Node):
         # PD controller gains para visual y laser 
         self.visualPD_gains = PDControllerParams(kp=0.001, kd=0.0005, sensor_type='visual', is_steering=True)
         self.laserPD_gains = [
-            PDControllerParams(kp=1.0, kd=0.0, sensor_type='laser', is_steering=False),
-            PDControllerParams(kp=1.0, kd=0.01, sensor_type='laser', is_steering=True)
+            PDControllerParams(kp=1.0, kd=0.1, sensor_type='laser', is_steering=False),
+            PDControllerParams(kp=1.0, kd=0.2, sensor_type='laser', is_steering=True)
         ]
 
         self.previous_visual_error = 0.0
