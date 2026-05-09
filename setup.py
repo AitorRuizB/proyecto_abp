@@ -32,6 +32,9 @@ setup(
             'differential_drive = proyecto_abp.differentialDrive:main',
             'camera_subscriber = proyecto_abp.cameraSubscriber:main',
             'camera_processor = proyecto_abp.cameraProcessor:main',
+            'laser_processor = proyecto_abp.laserProcessor:main',
+            'finite_state_machine = proyecto_abp.finiteStateMachine:main',
+            'pd_controller = proyecto_abp.pdController:main',
         ],
     },
 )

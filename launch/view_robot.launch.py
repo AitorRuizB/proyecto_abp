@@ -115,6 +115,14 @@ def launch_setup(context, *args, **kwargs):
             output='screen'
         )
 
+        # 4.6 Finite State Machine Node
+        fsm_node = Node(
+            package='proyecto_abp',
+            executable='finite_state_machine',
+            namespace=robot_name,
+            output='screen'
+        )
+
         # 5. Static TF (Connect world to robot_name/odom)
         # Offset the TF tree by the same amount the robot is spawned in Gazebo
         world_to_odom_tf = Node(
@@ -155,6 +163,7 @@ def launch_setup(context, *args, **kwargs):
         launch_nodes.append(TimerAction(period=5.0 + i*2.0, actions=[spawn]))  # Increased spawn delay
         #launch_nodes.append(TimerAction(period=8.0 + i*2.0, actions=[drive_node]))  # Increased drive node delay
         launch_nodes.append(TimerAction(period=9.0 + i*2.0, actions=[camera_sub_node]))  # Increased camera delay
+        launch_nodes.append(fsm_node)
         launch_nodes.append(world_to_odom_tf)
         launch_nodes.append(camera_tf)
         launch_nodes.append(lidar_tf)

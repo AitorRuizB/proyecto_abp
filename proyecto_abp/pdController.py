@@ -1,12 +1,13 @@
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
-from std_msgs.msg import Float32, Bool
+from std_msgs.msg import Float32, Bool, String
 import csv
 import os
 from datetime import datetime
 from cameraProcessor import ERROR_TOPIC as VISUAL_ERROR_TOPIC, HALLWAY_TOPIC
 from laserProcessor import ERROR_TOPIC as LASER_ERROR_TOPIC, OBSTACLE_TOPIC
+from finiteStateMachine import STATES, TRANSITIONS, TRANSITION_TOPIC, STATE_TOPIC
 
 SCAN_TOPIC = '/scan'  # Topic del laser
 VELOCITY_TOPIC = '/cmd_vel'  # Topic para publicar comandos de velocidad
@@ -47,8 +48,8 @@ class PDController(Node):
         self.previous_visual_error = 0.0
         self.previous_laser_error = 0.0
         self.controller_consecutive_actions_sent = 0 # detectar si ha conseguido minimizar el error visual
-        self.controller_successful = False #flag para dejar de buscar pq se localizo el pasillo y el controlador funciono
-        
+        self.fsm_st = STATES[0] # estado inicial de la FSM
+
         self.robot_id = robot_id # id is a namespace like '/robot_1'
         
         # Suscripción a los topics de la cámara
@@ -56,11 +57,12 @@ class PDController(Node):
         self.create_subscription(Bool, self.robot_id + HALLWAY_TOPIC, self.hallway_callback, 10)
         self.create_subscription(Float32, self.robot_id + LASER_ERROR_TOPIC, self.laser_error_callback, 10) 
         self.create_subscription(Bool, self.robot_id + OBSTACLE_TOPIC, self.obstacle_callback, 10)
-         # Para leer el laser y evitar obstáculos
-        
-        # Publicación de comandos de velocidad
+        self.create_subscription(String, self.robot_id + STATE_TOPIC, self.fsm_callback, 10) # Suscripción a transiciones de estado
+
+        # Publicación de comandos
         self.cmd_vel_publisher = self.create_publisher(Twist, self.robot_id + VELOCITY_TOPIC, 1) # QoS de 1 para comandos de velocidad
-        
+        self.transition_publisher = self.create_publisher(String, self.robot_id + TRANSITION_TOPIC, 10) # Publicar transiciones de estado
+
         # Estado actual del pasillo y el objetivo
         self.hallway_detected = False
         self.visual_error = None
@@ -106,11 +108,10 @@ class PDController(Node):
         """Callback para la detección de obstáculos."""
         self.there_is_obstacle = msg.data
 
-    def read_laser_scan(self):
-        """
-        Calcular mediante Vfh la ley de control para direccion
-        Retorna (velocidad_lineal, velocidad_angular_adicional_por_obstaculo).
-        """
+    def fsm_callback(self, msg):
+        """Callback para las transiciones de estado."""
+        if msg.data in STATES:
+            self.fsm_st = msg.data
 
     def csv_data_saving(self, timestamp, laser_error, control_law, control_law_source):
         """Guarda una fila de datos en el archivo CSV."""
@@ -125,29 +126,42 @@ class PDController(Node):
         cmd = Twist()
         cmd.linear.x = VCONS  # Usar la velocidad lineal del láser para evitar obstáculos
         
-        controller_success = self.controller_consecutive_actions_sent > 5 and abs(self.previous_visual_error) == 1.0
+        # flag para detectar que el controlador visual llevo al robot por la puerta
+        visual_controller_success = self.controller_consecutive_actions_sent > 50 and abs(self.previous_visual_error) == 1.0
 
-        if controller_success: 
-            self.controller_successful = True
+        if visual_controller_success: 
+            self.transition_publisher.publish(String(data=TRANSITIONS[0])) # DOOR FOUND
+            
 
         self.control_law_source = 'None'
         # Estado de wander & search: usar ley de control del Laser
-        if (not self.hallway_detected and not self.controller_successful) or self.there_is_obstacle:
+        if self.fsm_st == STATES[0]: # WANDER
+            if not self.hallway_detected: # Searching hallway
+                # Controlador proporcional de velocidad lineal
+                cmd.linear.x = VCONS * self.laserPD_gains[0].getKp() # controlador porporcional de velocidad lineal
+                # Controlador PD para steering
+                control_law = (self.laserPD_gains[1].getKp() * self.laser_error) + (self.laserPD_gains[1].getKd() * (self.laser_error - self.previous_laser_error) * FREQUENCY)
+                self.control_law_source = 'Laser'
+                self.get_logger().info('Buscando pasillo...')
+                self.controller_consecutive_actions_sent = 0
+
+            else: # Approach hallway
+                # Calcular el error y la derivada del error
+                derivative = (self.visual_error - self.previous_visual_error) * FREQUENCY
+                # Calcular la señal de control PD
+                control_law = (self.visualPD_gains.getKp() * self.visual_error) + (self.visualPD_gains.getKd() * derivative)
+                self.control_law_source = 'Visual'
+                self.get_logger().info('Aproximando puerta...')
+
+
+        # Estado navegacion por el pasillo -> PD laser based control con nuevas ganancias y umbrales
+        elif self.fsm_st == STATES[1]: # NAVIGATING_HALLWAY
             # Controlador proporcional de velocidad lineal
             cmd.linear.x = VCONS * self.laserPD_gains[0].getKp() # controlador porporcional de velocidad lineal
             # Controlador PD para steering
             control_law = (self.laserPD_gains[1].getKp() * self.laser_error) + (self.laserPD_gains[1].getKd() * (self.laser_error - self.previous_laser_error) * FREQUENCY)
             self.control_law_source = 'Laser'
-            self.get_logger().info('Buscando pasillo...')
-            self.controller_consecutive_actions_sent = 0
-            
-        # Estado identificacion pasillo -> PD visual based control
-        else:
-            # Calcular el error y la derivada del error
-            derivative = (self.visual_error - self.previous_visual_error) * FREQUENCY
-            # Calcular la señal de control PD
-            control_law = (self.visualPD_gains.getKp() * self.visual_error) + (self.visualPD_gains.getKd() * derivative)
-            self.control_law_source = 'Visual'
+            self.get_logger().info('Navegando pasillo...')
 
         # Asignar steering
         cmd.angular.z = -control_law

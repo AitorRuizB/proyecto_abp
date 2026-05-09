@@ -1,17 +1,17 @@
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import LaserScan
-from std_msgs.msg import Float32, Bool
+from std_msgs.msg import Float32, Bool, String
 import numpy as np
 import matplotlib.pyplot as plt
-
+from finiteStateMachine import STATE_TOPIC, STATES
 
 
 SCAN_TOPIC = '/scan'  # Topic del laser
 ERROR_TOPIC = '/laser_error' # Topic para publicar el error del laser (distancia al obstáculo más cercano)
 OBSTACLE_TOPIC = '/obstacle_detected' # Topic para publicar si se ha detectado un obstáculo cercano (bool)
 OBSTACLE_THRESHOLD = 1.0 # Distancia umbral para considerar que hay un obstáculo cercano (en metros)
-
+PLOT_VFH_DATA = True # for debug purposes
 # LaserPoint representa un punto detectado por el láser con su ángulo y distancia
 class LaserPoint:
     def __init__(self, angle, distance):
@@ -27,10 +27,10 @@ class LaserPoint:
 
 # Vector Field Histogram (VFH) para evitar obstáculos basado en el láser
 class Vfh:
-    def __init__(self, dynamic_plot=False):
+    def __init__(self, dynamic_plot=PLOT_VFH_DATA):
         self.histogram = None
         self.laser_data = None # raw data del laser
-
+        self.obstacle_threshold = OBSTACLE_THRESHOLD # init
         self.laser_points = np.empty((0,2)) # Array 2D of LaserPoints
         self.total_points = 0 # int 
         self.previous_direction = None # direccion seleccionada antes [-180º, +180º]
@@ -49,6 +49,18 @@ class Vfh:
             plt.ion()
             self.fig = plt.figure()
             self.ax = self.fig.add_subplot(111)
+
+    def set_threshold(self, thres, p_thres):
+        self.obstacle_threshold = thres
+        self.prob_occupied_threshold = p_thres
+
+    def set_gains(self, tG, pdG):
+        self.target_gain = tG
+        self.previous_direction_gain = pdG
+
+    def set_neighbourhood_size(self, size):
+        if(size != self.neighbourhood_size):
+            self.neighbourhood_size = size # in degrees
 
     def set_laser_data(self, laser_data):
         self.laser_data = np.array(laser_data)
@@ -231,7 +243,7 @@ class Vfh:
 class LaserProcessor(Node):
     def __init__(self, robot_id='/robot_0'):
         super().__init__('laser_processor')
-        self.vfh = Vfh(True) # A LaserProcessor uses a Vfh
+        self.vfh = Vfh() # A LaserProcessor uses a Vfh
         self.robot_id = robot_id
         # Subscribe to laser scan
         self.laser_subscription = self.create_subscription(
@@ -240,6 +252,9 @@ class LaserProcessor(Node):
             self.laser_callback,
             10
         )
+        # subscribe to fsm node
+        self.fsm_st = self.create_subscription(String, self.robot_id + STATE_TOPIC, self.fsm_callback, 10)
+
         # publisher
         self.laser_error_publisher = self.create_publisher(Float32, self.robot_id + ERROR_TOPIC, 10)
         self.obstacle_publisher = self.create_publisher(Bool, self.robot_id + OBSTACLE_TOPIC, 10)
@@ -248,6 +263,10 @@ class LaserProcessor(Node):
         
         self.get_logger().info(f'Laser processor initialized for {self.robot_id}')
 
+    def fsm_callback(self, msg):
+        if msg.data in STATES:
+            self.fsm_st = msg.data
+    
     def laser_callback(self, msg: LaserScan):
         if not msg.ranges:
             self.get_logger().warn("Received empty laser scan.")
@@ -257,7 +276,20 @@ class LaserProcessor(Node):
         self.vfh.set_laser_data(msg.ranges)
         self.vfh.process_laser_data()
 
-        #if not self.vfh.dynamic_plot:
+        # check the current state of the fsm to assign parameters to the VFH
+        if self.fsm_st == STATES[0]: # wander -> assign high threshold and min prob
+            self.vfh.set_threshold(OBSTACLE_THRESHOLD*1.5, 0.5)
+            self.vfh.set_gains(0.9,0.6)
+
+        elif self.fsm_st == STATES[1]:# nav Hallway -> low thres and lower prob
+            self.vfh.set_threshold(OBSTACLE_THRESHOLD, 0.3)
+            self.vfh.set_gains(1.0,0.99)
+
+        else: # default values
+            self.vfh.set_threshold(OBSTACLE_THRESHOLD, 0.5)
+            self.vfh.set_gains(0.0,0.0)
+            
+
         Float32_msg = Float32()
         Bool_msg = Bool()
 

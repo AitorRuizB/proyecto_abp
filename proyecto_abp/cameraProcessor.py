@@ -9,6 +9,7 @@ import numpy as np
 
 ERROR_TOPIC = '/visual_error' # float con componente X del centro de masas de la puerta detectada
 HALLWAY_TOPIC = '/hallway' # bool indicando si se ha detectado puerta y trampilla (True) o no (False)
+SHOW_CAMERA_FEED = False # for debug purposes
 
 class Recon:
     """
@@ -226,21 +227,24 @@ class CameraProcessor(Node):
         # Variable para almacenar el último frame procesado de forma segura
         self.latest_mask = None
         self.result = None
-        
-        # 1. CREAMOS LA VENTANA UNA SOLA VEZ AQUÍ
-        self.window_name = "Procesamiento de Puerta/Trampilla"
-        cv2.namedWindow(self.window_name, cv2.WINDOW_AUTOSIZE)
-        
+        self.dynamic_camera_feed = SHOW_CAMERA_FEED
+
         # Empleamos el setter en el constructor con el topic por defecto
         self.setCameraTopic(self.robot_id + '/camera/image')
         
-        # 2. CREAMOS UN TIMER PARA LA INTERFAZ GRÁFICA (~30 FPS)
-        timer_period = 0.033  # segundos (1/30)
-        self.display_timer = self.create_timer(timer_period, self.display_callback)
-
         # publishers para los topics de error y hallway
         self.error_publisher_ = self.create_publisher(Float32, self.robot_id + ERROR_TOPIC, 10)
         self.hallway_publisher_ = self.create_publisher(Bool, self.robot_id + HALLWAY_TOPIC, 10)
+        
+        if self.dynamic_camera_feed:
+            # 1. CREAMOS LA VENTANA UNA SOLA VEZ AQUÍ
+            self.window_name = "Procesamiento de Puerta/Trampilla"
+            cv2.namedWindow(self.window_name, cv2.WINDOW_AUTOSIZE)
+            
+            # 2. CREAMOS UN TIMER PARA LA INTERFAZ GRÁFICA (~30 FPS)
+            timer_period = 0.033  # segundos (1/30)
+            self.display_timer = self.create_timer(timer_period, self.display_callback)
+
         
         self.get_logger().info('Nodo CameraProcessor inicializado y listo.')
 
@@ -290,7 +294,7 @@ class CameraProcessor(Node):
 
     def display_callback(self):
         """Se ejecuta constantemente dictado por el timer. Se encarga del refresco gráfico."""
-        if self.result is not None:
+        if self.result is not None and self.dynamic_camera_feed:
             cv2.imshow(self.window_name, self.result)
             cv2.waitKey(1)
 
