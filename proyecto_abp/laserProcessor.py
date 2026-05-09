@@ -11,7 +11,8 @@ SCAN_TOPIC = '/scan'  # Topic del laser
 ERROR_TOPIC = '/laser_error' # Topic para publicar el error del laser (distancia al obstáculo más cercano)
 OBSTACLE_TOPIC = '/obstacle_detected' # Topic para publicar si se ha detectado un obstáculo cercano (bool)
 OBSTACLE_THRESHOLD = 1.0 # Distancia umbral para considerar que hay un obstáculo cercano (en metros)
-PLOT_VFH_DATA = True # for debug purposes
+EPSILON = 0.005 # error de steering minimo para ejercer el controlador
+PLOT_VFH_DATA = False # for debug purposes
 # LaserPoint representa un punto detectado por el láser con su ángulo y distancia
 class LaserPoint:
     def __init__(self, angle, distance):
@@ -170,7 +171,7 @@ class Vfh:
                 # Si no se pudo calcular, ir recto por defecto
                 self.goal_direction = 0.0
         else:
-            print("Direccion RECTO")
+            #print("Direccion RECTO")
             # Si hay un obstáculo cercano, el objetivo por defeto es ir recto para sortearlo
             self.goal_direction = 0.0
 
@@ -231,12 +232,17 @@ class Vfh:
         if self.previous_direction is None:
             self.previous_direction = selected_direction  # Por defecto, ir hacia el objetivo si no hay obstáculos o rutas seguras
 
-
+        if abs(selected_direction) < EPSILON:
+            print("Error menor a EPSILON -> CONTROLLER OFF ############################")
+            selected_direction = 0.0    
+        print(f"Selected direction: {selected_direction} ----------------------------")
+        
         # Calcular la función de coste para un giro suave
         target_error = (selected_direction - self.goal_direction)
         continuity_error = (selected_direction - self.previous_direction)
 
         self.G = self.target_gain * target_error + self.previous_direction_gain * continuity_error
+        print(f"G cost function value : {self.G} <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
         self.previous_direction = selected_direction # Actualizar para la siguiente iteración
         return self.G
 

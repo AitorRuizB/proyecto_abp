@@ -3,6 +3,8 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String 
 
+FREQUENCY = 10.0  # Frecuencia de control del MRS en Hz
+
 STATES = ['WANDER', 'APPROACH_DOOR','NAVIGATING_HALLWAY', 'MERGE_SLAM', 'NAV2TARGET']
 TRANSITIONS = ['HALLWAY_FOUND', 'DOOR_PASSED','TARGET_FOUND', 'GLOBAL_MAP_READY']
 
@@ -20,7 +22,7 @@ class FiniteStateMachine(Node):
         self.create_subscription(String, self.robot_id + TRANSITION_TOPIC, self.transition_callback, 10)
 
         # Create a timer to periodically publish the state at 12Hz
-        self.create_timer(1.0 / 12.0, self.periodic_publish)
+        self.create_timer(1.0 / FREQUENCY, self.periodic_publish)
 
         self.get_logger().info(f"Finite State Machine for {self.robot_id} initialized.")
 

@@ -7,11 +7,10 @@ import os
 from datetime import datetime
 from cameraProcessor import ERROR_TOPIC as VISUAL_ERROR_TOPIC, HALLWAY_TOPIC
 from laserProcessor import ERROR_TOPIC as LASER_ERROR_TOPIC, OBSTACLE_TOPIC
-from finiteStateMachine import STATES, TRANSITIONS, TRANSITION_TOPIC, STATE_TOPIC
+from finiteStateMachine import STATES, TRANSITIONS, TRANSITION_TOPIC, STATE_TOPIC, FREQUENCY
 
 SCAN_TOPIC = '/scan'  # Topic del laser
 VELOCITY_TOPIC = '/cmd_vel'  # Topic para publicar comandos de velocidad
-FREQUENCY = 10.0  # Frecuencia de control en Hz
 VCONS = 0.25
 
 class PDControllerParams():
@@ -68,7 +67,7 @@ class PDController(Node):
         self.visual_error = None
         self.laser_error = None
         self.there_is_obstacle = False
-        # Timer para el bucle de control principal
+        self.visual_controller_success = False        # Timer para el bucle de control principal
         self.timer = self.create_timer(1.0 / FREQUENCY, self.control_loop) # Ejecutar el bucle de control a 10 Hz
         
         # --- INICIO: Configuración para guardado en CSV ---
@@ -99,6 +98,12 @@ class PDController(Node):
     def laser_error_callback(self, msg):
         """Callback para el error del láser."""
         self.laser_error = msg.data
+        if self.visual_controller_success:
+            # reset error as we switch heuristic in the PD laser controller
+            self.laser_error = 0.0 
+            self.previous_laser_error = 0.0
+            self.visual_controller_success = False
+
 
     def hallway_callback(self, msg):
         """Callback para el estado de detección del pasillo/puerta."""
@@ -127,10 +132,10 @@ class PDController(Node):
         cmd.linear.x = VCONS  # Usar la velocidad lineal del láser para evitar obstáculos
         
         # flag para detectar que el controlador visual llevo al robot por la puerta
-        visual_controller_success = self.controller_consecutive_actions_sent > 50 and abs(self.previous_visual_error) == 1.0 and self.hallway_detected
+        self.visual_controller_success = self.controller_consecutive_actions_sent > 50 and abs(self.previous_visual_error) == 1.0 and self.hallway_detected
 
-        if visual_controller_success: 
-            self.transition_publisher.publish(String(data=TRANSITIONS[0])) # DOOR FOUND
+        if self.visual_controller_success:
+            self.transition_publisher.publish(String(data=TRANSITIONS[0])) # cambio de estado
             
         # Estado de wander & search: usar ley de control del Laser
         if self.fsm_st == STATES[0]: # WANDER
@@ -147,14 +152,14 @@ class PDController(Node):
                 derivative = (self.visual_error - self.previous_visual_error) * FREQUENCY
                 # Calcular la señal de control PD
                 control_law = (self.visualPD_gains.getKp() * self.visual_error) + (self.visualPD_gains.getKd() * derivative)
-                self.get_logger().info('Aproximando puerta...')
+                self.get_logger().info('Aproximando puerta con Visual based PD Controller...')
 
         elif self.fsm_st == STATES[1]: # Aprox puerta
             # Controlador proporcional de velocidad lineal
             cmd.linear.x = VCONS * self.laserPD_gains[0].getKp() # controlador porporcional de velocidad lineal
             # Controlador PD para steering
             control_law = (self.laserPD_gains[1].getKp() * self.laser_error) + (self.laserPD_gains[1].getKd() * (self.laser_error - self.previous_laser_error) * FREQUENCY)
-            self.get_logger().info('Buscando pasillo...')
+            self.get_logger().info('Aproximando puerta con Laser based PD Controller...')
         
         # Estado navegacion por el pasillo -> PD laser based control con nuevas ganancias y umbrales
         elif self.fsm_st == STATES[2]: # NAVIGATING_HALLWAY
