@@ -172,7 +172,7 @@ class PDController(Node):
         self.csv_data_saving(timestamp_sec, self.laser_error, control_law, self.control_law_source)
         # --- FIN: Guardado de datos en CSV ---
 
-        self.get_logger().info(f"VLineal: {cmd.linear.x:.2f}, Angular: {cmd.angular.z:.2f}, Error Visual: {self.visual_error:.2f}, Error Laser: {self.laser_error:.2f}, Obstacle?: {self.there_is_obstacle}")
+        #self.get_logger().info(f"VLineal: {cmd.linear.x:.2f}, Angular: {cmd.angular.z:.2f}, Error Visual: {self.visual_error:.2f}, Error Laser: {self.laser_error:.2f}, Obstacle?: {self.there_is_obstacle}")
         self.controller_consecutive_actions_sent += 1
 
         self.cmd_vel_publisher.publish(cmd)

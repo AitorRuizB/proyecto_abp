@@ -109,8 +109,6 @@ class Recon:
             if suma_gradiente_top > 50000:
                 puerta_detectada = True
                 centro_puerta = centroides[0]
-            else:
-                print("Falso positivo descartado (Columna vertical única)")
             
         elif len(contornos_validos) >= 2:
             # Caso B: Dos columnas y puede haber o no trampilla
@@ -135,11 +133,12 @@ class Recon:
             # Validar que los centros verticales son invariantes y la distancia no supera el umbral
             vertical_center = diff_y < self.umbral_y_diff
             close_threshold = dist1 < self.umbral_dist_max and dist2 < self.umbral_dist_max
+            """
             if not vertical_center:
                 print(f"Falso positivo descartado (Diferencia Y demasiado grande: {diff_y}px)")
             if not close_threshold:
                 print(f"Falso positivo descartado (Centros demasiado alejados: dist1={dist1:.2f}px, dist2={dist2:.2f}px)")
-
+            """
             if vertical_center and close_threshold:
                 puerta_detectada = True
                 centro_puerta = (cx_sistema, cy_sistema)
