@@ -199,6 +199,8 @@ class Vfh:
         # comprobar si hay puntos bajo del umbral para detectar obstáculos dentro de la vecindad
         self.there_is_obstacle = bool(np.any((self.laser_points[:,1] < OBSTACLE_THRESHOLD) & (np.abs(self.laser_points[:,0] - self.goal_direction) < np.radians(self.neighbourhood_size))))
 
+        # inicializar la direccion seleccionada al objetivo
+        selected_direction = self.goal_direction
         # Calcular función de costo basada en probabilidad de ocupacion 
         if self.calcular_probabilidades_ocupacion():
             # 1. Encontrar índices de puntos con baja probabilidad de ocupación 
