@@ -5,7 +5,7 @@ from std_msgs.msg import Float32, Bool, String
 import numpy as np
 import matplotlib.pyplot as plt
 from finiteStateMachine import STATE_TOPIC, STATES
-from cameraProcessor import HALLWAY_TOPIC
+
 
 SCAN_TOPIC = '/scan'  # Topic del laser
 ERROR_TOPIC = '/laser_error' # Topic para publicar el error del laser (distancia al obstáculo más cercano)
@@ -198,7 +198,8 @@ class Vfh:
 
         # comprobar si hay puntos bajo del umbral para detectar obstáculos dentro de la vecindad
         self.there_is_obstacle = bool(np.any((self.laser_points[:,1] < self.obstacle_threshold) & (np.abs(self.laser_points[:,0] - self.goal_direction) < np.radians(self.neighbourhood_size))))
-
+        if self.there_is_obstacle:
+            print("Hay un obstaculo")
         # inicializar la direccion seleccionada al objetivo
         selected_direction = self.goal_direction
         # Calcular función de costo basada en probabilidad de ocupacion 
@@ -235,16 +236,16 @@ class Vfh:
             self.previous_direction = selected_direction  # Por defecto, ir hacia el objetivo si no hay obstáculos o rutas seguras
 
         if abs(selected_direction) < EPSILON:
-            print("Error menor a EPSILON -> CONTROLLER OFF ############################")
+            #print("Error menor a EPSILON -> CONTROLLER OFF ############################")
             selected_direction = 0.0    
-        print(f"Selected direction: {selected_direction} ----------------------------")
+        #print(f"Selected direction: {selected_direction} ----------------------------")
         
         # Calcular la función de coste para un giro suave
         target_error = (selected_direction - self.goal_direction)
         continuity_error = (selected_direction - self.previous_direction)
 
         self.G = self.target_gain * target_error + self.previous_direction_gain * continuity_error
-        print(f"G cost function value : {self.G} <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
+        #print(f"G cost function value : {self.G} <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
         self.previous_direction = selected_direction # Actualizar para la siguiente iteración
         return self.G
 
@@ -298,8 +299,8 @@ class LaserProcessor(Node):
 
         elif self.fsm_st == STATES[2]:# nav Hallway -> low thres and lower prob
             self.vfh.set_status(self.fsm_st)
-            self.vfh.set_threshold(OBSTACLE_THRESHOLD + 0.2, 0.25)
-            self.vfh.set_gains(0.99,0.99)
+            self.vfh.set_threshold(OBSTACLE_THRESHOLD + 0.15, 0.5)
+            self.vfh.set_gains(0.99,0.8)
 
         else: # default values
             self.vfh.set_status(None)

@@ -165,8 +165,8 @@ class PDController(Node):
         elif self.fsm_st == STATES[2]: # NAVIGATING_HALLWAY
             # Controlador proporcional de velocidad lineal
             cmd.linear.x = VCONS * self.laserPD_gains[0].getKp() # controlador porporcional de velocidad lineal
-            self.laserPD_gains[1].setKp(1.05) # increase gain as quick turns are required
-            self.laserPD_gains[1].setKd(0.25)
+            self.laserPD_gains[1].setKp(1.2) # increase gain as quick turns are required
+            self.laserPD_gains[1].setKd(0.19)
             # Controlador PD para steering
             control_law = (self.laserPD_gains[1].getKp() * self.laser_error) + (self.laserPD_gains[1].getKd() * (self.laser_error - self.previous_laser_error) * FREQUENCY)
             self.get_logger().info('Navegando pasillo...')
