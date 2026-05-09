@@ -134,7 +134,7 @@ class Vfh:
         if self.laser_points.size == 0:
             return False  
         k = 10 # pendiente de la función sigmoide
-        d0 = OBSTACLE_THRESHOLD # punto medio en el umbral
+        d0 = self.obstacle_threshold # punto medio en el umbral
         probabilities = 1 / (1 + np.exp(-k * (self.laser_points[:,1] - d0)))
         # invertir para que valores altos de P represneten un obstaculo cercano
         probabilities = 1 - probabilities
@@ -197,7 +197,7 @@ class Vfh:
             return self.G
 
         # comprobar si hay puntos bajo del umbral para detectar obstáculos dentro de la vecindad
-        self.there_is_obstacle = bool(np.any((self.laser_points[:,1] < OBSTACLE_THRESHOLD) & (np.abs(self.laser_points[:,0] - self.goal_direction) < np.radians(self.neighbourhood_size))))
+        self.there_is_obstacle = bool(np.any((self.laser_points[:,1] < self.obstacle_threshold) & (np.abs(self.laser_points[:,0] - self.goal_direction) < np.radians(self.neighbourhood_size))))
 
         # inicializar la direccion seleccionada al objetivo
         selected_direction = self.goal_direction
@@ -293,13 +293,13 @@ class LaserProcessor(Node):
         # check the current state of the fsm to assign parameters to the VFH
         if self.fsm_st == STATES[0] or self.fsm_st == STATES[1]: # wander & approach -> assign high threshold and min prob
             self.vfh.set_status(self.fsm_st)
-            self.vfh.set_threshold(OBSTACLE_THRESHOLD + 0.2, 0.5)
+            self.vfh.set_threshold(OBSTACLE_THRESHOLD, 0.5)
             self.vfh.set_gains(0.8,0.6)
 
         elif self.fsm_st == STATES[2]:# nav Hallway -> low thres and lower prob
             self.vfh.set_status(self.fsm_st)
-            self.vfh.set_threshold(OBSTACLE_THRESHOLD, 0.25)
-            self.vfh.set_gains(0.8,0.6)
+            self.vfh.set_threshold(OBSTACLE_THRESHOLD + 0.2, 0.25)
+            self.vfh.set_gains(0.99,0.99)
 
         else: # default values
             self.vfh.set_status(None)
