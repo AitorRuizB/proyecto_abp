@@ -5,7 +5,7 @@ from std_msgs.msg import Float32, Bool, String
 import numpy as np
 import matplotlib.pyplot as plt
 from finiteStateMachine import STATE_TOPIC, STATES
-
+from cameraProcessor import HALLWAY_TOPIC
 
 SCAN_TOPIC = '/scan'  # Topic del laser
 ERROR_TOPIC = '/laser_error' # Topic para publicar el error del laser (distancia al obstáculo más cercano)
@@ -35,6 +35,7 @@ class Vfh:
         self.total_points = 0 # int 
         self.previous_direction = None # direccion seleccionada antes [-180º, +180º]
         self.there_is_obstacle = False # bool indicando si hay un obstáculo cercano según el umbral
+        self.hallway_detected = None # flag desde el laserProcessor
         self.neighbourhood_size = 20 # tamaño de la vecindad en grados para calcular apertura libre
         self.obstacle_probabilities = None # Array 2D of [angle, probability] para cada punto del laser, donde la probabilidad se calcula a partir de la distancia usando una función sigmoide
         self.prob_occupied_threshold = 0.5 # probabilidad minima para considerar un punto como ocupado (obstáculo) 
@@ -65,6 +66,9 @@ class Vfh:
     def set_laser_data(self, laser_data):
         self.laser_data = np.array(laser_data)
         self.total_points = int(len(laser_data))
+
+    def set_hallway_flag(self, flag):
+        self.hallway_detected = flag
     
     def process_laser_data(self):
         if self.laser_data is None or self.total_points == 0:
@@ -135,8 +139,8 @@ class Vfh:
         probabilities = 1 - probabilities
         self.obstacle_probabilities = np.column_stack((self.laser_points[:,0], probabilities))
 
-        # TODO: seleccionar en una vecindad self.neighbourhood_size el valor mediano con la probabilidad más baja
-        if not self.there_is_obstacle:
+        # Seleccionar en una vecindad self.neighbourhood_size el valor mediano con la probabilidad más baja
+        if not self.there_is_obstacle and not self.hallway_detected:
             # Heurística para encontrar la dirección más segura (el "valle" con menor probabilidad de ocupación)
             # cuando no hay un obstáculo inminente. Se busca la región más "despejada".
             
@@ -254,6 +258,8 @@ class LaserProcessor(Node):
         )
         # subscribe to fsm node
         self.fsm_st = self.create_subscription(String, self.robot_id + STATE_TOPIC, self.fsm_callback, 10)
+        # subscribe to the camera topic to avoid perception conflicts
+        self.camera_feed = self.create_subscription(Bool, self.robot_id + HALLWAY_TOPIC, self.camera_callback, 10)
 
         # publisher
         self.laser_error_publisher = self.create_publisher(Float32, self.robot_id + ERROR_TOPIC, 10)
@@ -262,6 +268,10 @@ class LaserProcessor(Node):
         
         
         self.get_logger().info(f'Laser processor initialized for {self.robot_id}')
+
+    def camera_callback(self, msg):
+        if msg is not None:
+            self.vfh.set_hallway_flag(msg.data)
 
     def fsm_callback(self, msg):
         if msg.data in STATES:
@@ -278,8 +288,8 @@ class LaserProcessor(Node):
 
         # check the current state of the fsm to assign parameters to the VFH
         if self.fsm_st == STATES[0]: # wander -> assign high threshold and min prob
-            self.vfh.set_threshold(OBSTACLE_THRESHOLD*1.5, 0.5)
-            self.vfh.set_gains(0.9,0.6)
+            self.vfh.set_threshold(OBSTACLE_THRESHOLD + 0.2, 0.5)
+            self.vfh.set_gains(0.8,0.6)
 
         elif self.fsm_st == STATES[1]:# nav Hallway -> low thres and lower prob
             self.vfh.set_threshold(OBSTACLE_THRESHOLD, 0.3)
