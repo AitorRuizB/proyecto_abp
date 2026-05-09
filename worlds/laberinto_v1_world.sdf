@@ -1784,8 +1784,8 @@
             </box>
           </geometry>
           <material>
-            <ambient>0.400000006 0.400000006 0.400000006 1</ambient>
-            <diffuse>0.400000006 0.400000006 0.400000006 1</diffuse>
+            <ambient>1 0.5 0 1</ambient>
+            <diffuse>1 0.5 0 1</diffuse>
           </material>
         </visual>
         <pose>0 0 0 0 0 0</pose>
@@ -2060,8 +2060,8 @@
             </box>
           </geometry>
           <material>
-            <ambient>0.400000006 0.400000006 0.400000006 1</ambient>
-            <diffuse>0.400000006 0.400000006 0.400000006 1</diffuse>
+            <ambient>1 0.5 0 1</ambient>
+            <diffuse>1 0.5 0 1</diffuse>
           </material>
         </visual>
         <pose>0 0 0 0 0 0</pose>
