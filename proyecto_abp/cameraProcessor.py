@@ -1,7 +1,8 @@
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
-from std_msgs.msg import Float32, Bool
+from std_msgs.msg import Float32, Bool, String
+from finiteStateMachine import STATE_TOPIC, STATES, TRANSITION_TOPIC, TRANSITIONS
 import cv_bridge
 import cv2
 import numpy as np
@@ -22,6 +23,7 @@ class Recon:
         self.upper_purple = np.array([155, 255, 255])
         self.frame = None
         self.there_is_hallway = False
+        self.trampilla_detectada = False # flag para activar transicion de estado
         self.error = None
 
         # Umbrales configurables para la geometría de la puerta
@@ -33,6 +35,10 @@ class Recon:
 
     def get_hallway_status(self):
         return self.there_is_hallway
+    
+    def is_already_in_hallway(self):
+        return not (self.trampilla_detectada or self.there_is_hallway)
+
 
     def set_frame(self, frame):
         """Almacena el frame actual para su procesamiento."""
@@ -80,7 +86,7 @@ class Recon:
                     centroides.append((cx, cy))
 
         puerta_detectada = False
-        trampilla_detectada = False
+        self.trampilla_detectada = False
         centro_puerta = None
 
         # Kernel de Prewitt para detectar bordes horizontales (gradiente en Y)
@@ -184,7 +190,7 @@ class Recon:
             
             # Detección final de la trampilla (umbral calibrable)
             if suma_gradiente_bottom > 250000:
-                trampilla_detectada = True
+                self.trampilla_detectada = True
 
         # --- 3. DIBUJAR ESTADO DE LA DETECCIÓN EN PANTALLA ---
         _, anchura = output_img.shape[:2]
@@ -192,19 +198,19 @@ class Recon:
         if puerta_detectada:
             # Texto verde indicando puerta detectada
             cv2.putText(output_img, 'PUERTA DETECTADA', (anchura - 280, 40), font, 0.7, (0, 255, 0), 2, cv2.LINE_AA)
-        if trampilla_detectada:
+        if self.trampilla_detectada:
             # Texto amarillo indicando la trampilla debajo del anterior
             cv2.putText(output_img, '+ TRAMPILLA DETECTADA', (anchura - 280, 75), font, 0.7, (0, 255, 255), 2, cv2.LINE_AA)
-        if not puerta_detectada and not trampilla_detectada:
+        if not puerta_detectada and not self.trampilla_detectada:
             # Texto rojo si no hay nada detectado
             cv2.putText(output_img, 'BUSCANDO...', (anchura - 180, 40), font, 0.7, (0, 0, 255), 2, cv2.LINE_AA)
 
         # actualizar el estado del pasillo (hallway) y el error 
-        self.there_is_hallway = (puerta_detectada and trampilla_detectada)
+        self.there_is_hallway = (puerta_detectada and self.trampilla_detectada)
         self.error = None  # valor por defecto si no se detecta puerta
         
         # relajar caso de que haya trampilla pero este muy cerca de la puerta
-        if (puerta_detectada or trampilla_detectada) and centro_puerta is not None:
+        if (puerta_detectada or self.trampilla_detectada) and centro_puerta is not None:
             img_width = output_img.shape[1]  # ancho de la imagen
             self.error = float(centro_puerta[0] - img_width / 2)  # componente X del error (diferencia con el centro de la imagen)
 
@@ -227,13 +233,19 @@ class CameraProcessor(Node):
         self.latest_mask = None
         self.result = None
         self.dynamic_camera_feed = SHOW_CAMERA_FEED
+        self.fsm_st = None
 
         # Empleamos el setter en el constructor con el topic por defecto
         self.setCameraTopic(self.robot_id + '/camera/image')
         
+        # subscriptor a la fsm
+        self.create_subscription(String, self.robot_id + STATE_TOPIC, self.fsm_callback, 10)
+
+
         # publishers para los topics de error y hallway
         self.error_publisher_ = self.create_publisher(Float32, self.robot_id + ERROR_TOPIC, 10)
         self.hallway_publisher_ = self.create_publisher(Bool, self.robot_id + HALLWAY_TOPIC, 10)
+        self.fsm_transition_publisher_ = self.create_publisher(String, self.robot_id + TRANSITION_TOPIC, 10)
         
         if self.dynamic_camera_feed:
             # 1. CREAMOS LA VENTANA UNA SOLA VEZ AQUÍ
@@ -247,6 +259,9 @@ class CameraProcessor(Node):
         
         self.get_logger().info('Nodo CameraProcessor inicializado y listo.')
 
+    def fsm_callback(self, msg: String):
+        self.fsm_st = msg.data if msg is not None else None
+   
     def setCameraTopic(self, topic: str):
         """
         Setter para el topic de la cámara. 
@@ -281,10 +296,17 @@ class CameraProcessor(Node):
             # Publicar los resultados en los topics correspondientes
             error_msg = Float32()
             hallway_msg = Bool()
+            trans_msg = String()
 
             error_msg.data = self.recon.get_error() if self.recon.get_error() is not None else 0.0
             hallway_msg.data = self.recon.get_hallway_status()
             
+            # Lanzar transiciones si se dan las condiciones 
+            if self.fsm_st == STATES[1] and self.recon.is_already_in_hallway(): # Envia transicion de estado a la FSM
+                trans_msg.data = TRANSITIONS[1]
+                self.fsm_transition_publisher_.publish(trans_msg)
+
+            # Publisher de realimentacion para el controlador PD 
             self.error_publisher_.publish(error_msg)
             self.hallway_publisher_.publish(hallway_msg)
                 
