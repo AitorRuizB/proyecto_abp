@@ -3,8 +3,8 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String 
 
-STATES = ['WANDER', 'NAVIGATING_HALLWAY', 'MERGE_SLAM', 'NAV2TARGET']
-TRANSITIONS = ['HALLWAY_FOUND', 'TARGET_FOUND', 'GLOBAL_MAP_READY']
+STATES = ['WANDER', 'APPROACH_DOOR','NAVIGATING_HALLWAY', 'MERGE_SLAM', 'NAV2TARGET']
+TRANSITIONS = ['HALLWAY_FOUND', 'DOOR_PASSED','TARGET_FOUND', 'GLOBAL_MAP_READY']
 
 TRANSITION_TOPIC = '/transition'  # Topic para publicar transiciones de estado
 STATE_TOPIC = '/state'  # Topic para publicar estados del robot
@@ -43,12 +43,15 @@ class FiniteStateMachine(Node):
     def transition_callback(self, msg):
         transition = msg.data
         if transition in TRANSITIONS:
-            if transition == 'HALLWAY_FOUND' and self.get_current_state() != 'NAVIGATING_HALLWAY':
-                self.publish_state('NAVIGATING_HALLWAY')
-            elif transition == 'TARGET_FOUND' and self.get_current_state() != 'MERGE_SLAM':
-                self.publish_state('MERGE_SLAM')
-            elif transition == 'GLOBAL_MAP_READY' and self.get_current_state() != 'NAV2TARGET':
-                self.publish_state('NAV2TARGET')
+            
+            if transition == TRANSITIONS[0] and self.get_current_state() != STATES[1]:
+                self.publish_state(STATES[1])
+
+            elif transition == TRANSITIONS[1] and self.get_current_state() != STATES[2]:
+                self.publish_state(STATES[2])
+            
+            elif transition == TRANSITIONS[2] and self.get_current_state() != STATES[3]:
+                self.publish_state(STATES[3])
 
 def main(args=None):
     rclpy.init(args=args)

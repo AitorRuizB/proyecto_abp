@@ -127,7 +127,7 @@ class PDController(Node):
         cmd.linear.x = VCONS  # Usar la velocidad lineal del láser para evitar obstáculos
         
         # flag para detectar que el controlador visual llevo al robot por la puerta
-        visual_controller_success = self.controller_consecutive_actions_sent > 50 and abs(self.previous_visual_error) == 1.0
+        visual_controller_success = self.controller_consecutive_actions_sent > 50 and abs(self.previous_visual_error) == 1.0 and self.hallway_detected
 
         if visual_controller_success: 
             self.transition_publisher.publish(String(data=TRANSITIONS[0])) # DOOR FOUND
@@ -149,9 +149,15 @@ class PDController(Node):
                 control_law = (self.visualPD_gains.getKp() * self.visual_error) + (self.visualPD_gains.getKd() * derivative)
                 self.get_logger().info('Aproximando puerta...')
 
-
+        elif self.fsm_st == STATES[1]: # Aprox puerta
+            # Controlador proporcional de velocidad lineal
+            cmd.linear.x = VCONS * self.laserPD_gains[0].getKp() # controlador porporcional de velocidad lineal
+            # Controlador PD para steering
+            control_law = (self.laserPD_gains[1].getKp() * self.laser_error) + (self.laserPD_gains[1].getKd() * (self.laser_error - self.previous_laser_error) * FREQUENCY)
+            self.get_logger().info('Buscando pasillo...')
+        
         # Estado navegacion por el pasillo -> PD laser based control con nuevas ganancias y umbrales
-        elif self.fsm_st == STATES[1]: # NAVIGATING_HALLWAY
+        elif self.fsm_st == STATES[2]: # NAVIGATING_HALLWAY
             # Controlador proporcional de velocidad lineal
             cmd.linear.x = VCONS * self.laserPD_gains[0].getKp() # controlador porporcional de velocidad lineal
             # Controlador PD para steering
