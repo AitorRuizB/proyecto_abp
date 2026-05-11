@@ -208,7 +208,7 @@ class Recon:
         _, anchura = output_img.shape[:2]
         
         if puerta_detectada:
-            print("Puerta detectada.")
+            #print("Puerta detectada.")
             # Texto verde indicando puerta detectada
             cv2.putText(output_img, 'PUERTA DETECTADA', (anchura - 280, 40), font, 0.7, (0, 255, 0), 2, cv2.LINE_AA)
         if self.trampilla_detectada:

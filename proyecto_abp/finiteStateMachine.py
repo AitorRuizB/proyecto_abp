@@ -3,7 +3,7 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String 
 
-FREQUENCY = 10.0  # Frecuencia de control del MRS en Hz
+FREQUENCY = 50.0  # Frecuencia de control del MRS en Hz
 
 STATES = ['WANDER', 'APPROACH_DOOR','NAVIGATING_HALLWAY', 'MERGE_SLAM', 'NAV2TARGET']
 TRANSITIONS = ['HALLWAY_FOUND', 'DOOR_PASSED','TARGET_FOUND', 'GLOBAL_MAP_READY']
