@@ -19,7 +19,7 @@ def main():
 
     # 1. BUCLE: Crear un nodo de SLAM por cada robot
     for i in range(1, num_robots + 1):
-        robot_name = f'robot{i}'
+        robot_name = f'robot_{i}' # <--- ADAPTADO AL GUION BAJO
         
         # El nodo de SLAM para este robot específico
         nodes.append(LifecycleNode(
@@ -29,7 +29,7 @@ def main():
                 slam_yaml,
                 {
                     'odom_frame':   f'{robot_name}/odom',
-                    'base_frame':   f'{robot_name}/base_footprint',
+                    'base_frame':   f'{robot_name}/base_link', # <--- CAMBIADO A base_link
                     'map_frame':    f'{robot_name}/map',
                     'scan_topic':   f'/{robot_name}/scan',
                     'use_sim_time': True,

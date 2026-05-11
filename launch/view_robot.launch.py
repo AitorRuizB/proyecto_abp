@@ -42,7 +42,7 @@ def launch_setup(context, *args, **kwargs):
 """
 
     # Generate bridge parameters for each robot
-    for i in range(num_robots):
+    for i in range(1,num_robots+1):
         robot_name = f'robot_{i}'
         for topic_config in bridge_topics:
             # All TF messages go to the same topic
@@ -128,45 +128,24 @@ def launch_setup(context, *args, **kwargs):
         world_to_odom_tf = Node(
             package='tf2_ros',
             executable='static_transform_publisher',
-            arguments=['--x', '-5.0', '--y', str(-8.0 + i * 2.0), '--z', '0.0',
+            arguments=['--x', '0.0', '--y', str(0.0 + i * 2.0), '--z', '0.0',
                        '--yaw', '0.0', '--pitch', '0.0', '--roll', '0.0',
-                       '--frame-id', 'world', '--child-frame-id', f'{robot_name}/odom'],
+                       '--frame-id', 'map', '--child-frame-id', f'{robot_name}/odom'],
             output='screen'
         )
 
         # --- NUEVO NODO PARA RECONECTAR LA CÁMARA Y APLICAR ROTACIÓN ÓPTICA ---
-        camera_tf = Node(
-            package='tf2_ros',
-            executable='static_transform_publisher',
-            # Rotamos Yaw y Roll -1.5708 rad (-90 grados) para alinear la óptica
-            arguments=['--x', '0.0', '--y', '0.0', '--z', '0.0',
-                       '--yaw', '-1.5708', '--pitch', '0.0', '--roll', '-1.5708',
-                       '--frame-id', f'{robot_name}/camera_link',
-                       '--child-frame-id', f'{robot_name}/base_link/camera'],
-            output='screen'
-        )
-
-        # --- NUEVO NODO PARA RECONECTAR EL LIDAR ---
-        lidar_tf = Node(
-            package='tf2_ros',
-            executable='static_transform_publisher',
-            # El LiDAR coincide exactamente con su Link, así que todo es 0
-            arguments=['--x', '0.0', '--y', '0.0', '--z', '0.0',
-                       '--yaw', '0.0', '--pitch', '0.0', '--roll', '0.0',
-                       '--frame-id', f'{robot_name}/lidar_link',
-                       '--child-frame-id', f'{robot_name}/base_link/gpu_lidar'],
-            output='screen'
-        )
+        
         
         launch_nodes.append(TimerAction(period=2.0, actions=[rsp]))  # Delay RSP start
         launch_nodes.append(TimerAction(period=2.0, actions=[jsp]))  # Delay JSP start
         launch_nodes.append(TimerAction(period=5.0 + i*2.0, actions=[spawn]))  # Increased spawn delay
         #launch_nodes.append(TimerAction(period=8.0 + i*2.0, actions=[drive_node]))  # Increased drive node delay
-        launch_nodes.append(TimerAction(period=9.0 + i*2.0, actions=[camera_sub_node]))  # Increased camera delay
-        launch_nodes.append(fsm_node)
+        #launch_nodes.append(TimerAction(period=9.0 + i*2.0, actions=[camera_sub_node]))  # Increased camera delay
+       # launch_nodes.append(fsm_node)
         launch_nodes.append(world_to_odom_tf)
-        launch_nodes.append(camera_tf)
-        launch_nodes.append(lidar_tf)
+        #launch_nodes.append(camera_tf)
+        #launch_nodes.append(lidar_tf)
 
     generated_bridge_params_path = os.path.join(robot_bringup_package_dir, 'config', 'generated_bridge_params.yaml')
     with open(generated_bridge_params_path, 'w') as f:
