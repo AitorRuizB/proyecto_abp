@@ -2,7 +2,7 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 from std_msgs.msg import Float32, Bool, String
-from finiteStateMachine import STATE_TOPIC, STATES, TRANSITION_TOPIC, TRANSITIONS
+from finiteStateMachine import STATE_TOPIC, STATES, TRANSITION_TOPIC, TRANSITIONS, FREQUENCY
 import cv_bridge
 import cv2
 import numpy as np
@@ -311,6 +311,8 @@ class CameraProcessor(Node):
         self.result = None
         self.dynamic_camera_feed = SHOW_CAMERA_FEED
         self.fsm_st = None
+        # Variable para almacenar el último valor de goal calculado
+        self.last_goal_value = 0.0
 
         # Empleamos el setter en el constructor con el topic por defecto
         self.setCameraTopic(self.robot_id + '/camera/image')
@@ -324,6 +326,10 @@ class CameraProcessor(Node):
         self.hallway_publisher_ = self.create_publisher(Bool, self.robot_id + HALLWAY_TOPIC, 10)
         self.fsm_transition_publisher_ = self.create_publisher(String, self.robot_id + TRANSITION_TOPIC, 10)
         self.goal_publisher_ = self.create_publisher(Float32, self.robot_id + GOAL_TOPIC, 10)
+        
+        # Timer para publicar el goal a baja frecuencia (1 Hz)
+        goal_timer_period = 1.0  # segundos (1 Hz)
+        self.goal_timer = self.create_timer(goal_timer_period, self.goal_publish_callback)
         
         if self.dynamic_camera_feed:
             # 1. CREAMOS LA VENTANA UNA SOLA VEZ AQUÍ
@@ -382,17 +388,17 @@ class CameraProcessor(Node):
 
             error_msg.data = self.recon.get_error() if self.recon.get_error() is not None else 0.0
             hallway_msg.data = self.recon.get_hallway_status()
-            goal_msg = Float32()
+            
+            # Almacenar el goal para publicarlo a baja frecuencia
+            if self.fsm_st == STATES[2]:  # NAVIGATING_HALLWAY
+                self.last_goal_value = self.recon.get_goal()
+            
             # Lanzar transiciones si se dan las condiciones 
             if self.fsm_st == STATES[1] and self.recon.is_already_in_hallway(): # Envia transicion de estado a la FSM
                 trans_msg.data = TRANSITIONS[1]
                 self.fsm_transition_publisher_.publish(trans_msg)
-
-            if self.fsm_st == STATES[2]: # Envia objetivo al controlador PD
-                goal_msg.data = self.recon.get_goal()
-                self.goal_publisher_.publish(goal_msg)
         
-            # Publisher de realimentacion para el controlador PD 
+            # Publisher de realimentacion para el controlador PD (frecuencia de imagen)
             self.error_publisher_.publish(error_msg)
             self.hallway_publisher_.publish(hallway_msg)
             
@@ -405,6 +411,13 @@ class CameraProcessor(Node):
         if self.result is not None and self.dynamic_camera_feed:
             cv2.imshow(self.window_name, self.result)
             cv2.waitKey(1)
+
+    def goal_publish_callback(self):
+        """Se ejecuta a baja frecuencia (1 Hz) para publicar el goal calculado."""
+        if self.fsm_st == STATES[2]:  # Solo publicar goal en estado NAVIGATING_HALLWAY
+            goal_msg = Float32()
+            goal_msg.data = self.last_goal_value
+            self.goal_publisher_.publish(goal_msg)
 
 
 def main(args=None):
