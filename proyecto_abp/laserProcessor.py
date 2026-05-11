@@ -4,7 +4,7 @@ from sensor_msgs.msg import LaserScan
 from std_msgs.msg import Float32, Bool, String
 import numpy as np
 import matplotlib.pyplot as plt
-from finiteStateMachine import STATE_TOPIC, STATES
+from proyecto_abp.finiteStateMachine import STATE_TOPIC, STATES
 
 
 SCAN_TOPIC = '/scan'  # Topic del laser

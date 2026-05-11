@@ -2,7 +2,7 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 from std_msgs.msg import Float32, Bool, String
-from finiteStateMachine import STATE_TOPIC, STATES, TRANSITION_TOPIC, TRANSITIONS
+from proyecto_abp.finiteStateMachine import STATE_TOPIC, STATES, TRANSITION_TOPIC, TRANSITIONS
 import cv_bridge
 import cv2
 import numpy as np

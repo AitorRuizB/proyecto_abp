@@ -18,8 +18,8 @@ def main():
     nodes = []
 
     # 1. BUCLE: Crear un nodo de SLAM por cada robot
-    for i in range(1, num_robots + 1):
-        robot_name = f'robot{i}'
+    for i in range(0, num_robots):
+        robot_name = f'robot_{i}'
         
         # El nodo de SLAM para este robot específico
         nodes.append(LifecycleNode(

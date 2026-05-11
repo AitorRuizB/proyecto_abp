@@ -5,9 +5,9 @@ from std_msgs.msg import Float32, Bool, String
 import csv
 import os
 from datetime import datetime
-from cameraProcessor import ERROR_TOPIC as VISUAL_ERROR_TOPIC, HALLWAY_TOPIC
-from laserProcessor import ERROR_TOPIC as LASER_ERROR_TOPIC, OBSTACLE_TOPIC
-from finiteStateMachine import STATES, TRANSITIONS, TRANSITION_TOPIC, STATE_TOPIC, FREQUENCY
+from proyecto_abp.cameraProcessor import ERROR_TOPIC as VISUAL_ERROR_TOPIC, HALLWAY_TOPIC
+from proyecto_abp.laserProcessor import ERROR_TOPIC as LASER_ERROR_TOPIC, OBSTACLE_TOPIC
+from proyecto_abp.finiteStateMachine import STATES, TRANSITIONS, TRANSITION_TOPIC, STATE_TOPIC, FREQUENCY
 
 SCAN_TOPIC = '/scan'  # Topic del laser
 VELOCITY_TOPIC = '/cmd_vel'  # Topic para publicar comandos de velocidad
@@ -173,13 +173,14 @@ class PDController(Node):
 
         # Asignar steering
         cmd.angular.z = -control_law
+        print(f"Control Law: {control_law:.4f}, Visual Error: {self.visual_error:.4f}, Laser Error: {self.laser_error:.4f}, FSM State: {self.fsm_st}")
 
-        # --- INICIO: Guardado de datos en CSV ---
+        """# --- INICIO: Guardado de datos en CSV ---
         current_time = self.get_clock().now()
         timestamp_sec = current_time.nanoseconds / 1e9
         self.csv_data_saving(timestamp_sec, self.visual_error, self.laser_error, control_law, self.fsm_st)
         # --- FIN: Guardado de datos en CSV ---
-
+"""
         #self.get_logger().info(f"VLineal: {cmd.linear.x:.2f}, Angular: {cmd.angular.z:.2f}, Error Visual: {self.visual_error:.2f}, Error Laser: {self.laser_error:.2f}, Obstacle?: {self.there_is_obstacle}")
         self.controller_consecutive_actions_sent += 1
 
