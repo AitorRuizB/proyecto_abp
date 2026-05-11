@@ -2,9 +2,6 @@ import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Float32, Bool, String
-import csv
-import os
-from datetime import datetime
 from proyecto_abp.cameraProcessor import ERROR_TOPIC as VISUAL_ERROR_TOPIC, HALLWAY_TOPIC
 from proyecto_abp.laserProcessor import ERROR_TOPIC as LASER_ERROR_TOPIC, OBSTACLE_TOPIC
 from proyecto_abp.finiteStateMachine import STATES, TRANSITIONS, TRANSITION_TOPIC, STATE_TOPIC, FREQUENCY
@@ -70,24 +67,6 @@ class PDController(Node):
         self.visual_controller_success = False        # Timer para el bucle de control principal
         self.timer = self.create_timer(1.0 / FREQUENCY, self.control_loop) # Ejecutar el bucle de control a 10 Hz
         
-        # --- INICIO: Configuración para guardado en CSV ---
-        # Crear un nombre de archivo único para el log
-        robot_name = self.robot_id.strip('/') # Eliminar la barra inicial para el nombre de archivo
-        timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-        # Directorio para guardar los CSV
-        csv_dir = "csv"
-        os.makedirs(csv_dir, exist_ok=True)
-        csv_filepath = os.path.join(csv_dir, f"pd_controller_log_{robot_name}_{timestamp_str}.csv")
-        
-        # Abrir el archivo y crear el writer
-        self.csv_file = open(csv_filepath, 'w', newline='')
-        self.csv_writer = csv.writer(self.csv_file)
-        
-        # Escribir la cabecera
-        self.csv_writer.writerow(['timestamp', 'visual_error', 'laser_error', 'control_law', 'fsm_state'])
-        self.get_logger().info(f"Guardando datos de control en: {csv_filepath}")
-        # --- FIN: Configuración para guardado en CSV ---
         
         self.get_logger().info(f'PDController para {self.robot_id} inicializado.')
 
@@ -118,10 +97,6 @@ class PDController(Node):
         if msg.data in STATES:
             self.fsm_st = msg.data
 
-    def csv_data_saving(self, timestamp, visual_error, laser_error, control_law, fsm_state):
-        """Guarda una fila de datos en el archivo CSV."""
-        self.csv_writer.writerow([timestamp, visual_error, laser_error, control_law, fsm_state])
-    
     
     def control_loop(self):
         """Bucle de control principal que se ejecuta periódicamente."""
@@ -184,12 +159,6 @@ class PDController(Node):
         self.previous_visual_error = self.visual_error
         self.previous_laser_error = self.laser_error
 
-    def destroy_node(self):
-        """Limpia recursos, como cerrar el archivo CSV, antes de que el nodo se destruya."""
-        if hasattr(self, 'csv_file') and self.csv_file:
-            self.get_logger().info("Cerrando archivo CSV.")
-            self.csv_file.close()
-        super().destroy_node()
 
 # -------------------------------- ZONA DE PRUEBAS DEL CONTROLADOR PD ------------------------------------------
 def main(args=None):
@@ -201,7 +170,6 @@ def main(args=None):
     # rclpy.spin() se encargará de ejecutar el timer y los callbacks
     rclpy.spin(pd_controller)
 
-    pd_controller.destroy_node()
     rclpy.shutdown()
     
 if __name__ == '__main__':
