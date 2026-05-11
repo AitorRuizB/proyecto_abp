@@ -26,7 +26,7 @@ def launch_setup(context, *args, **kwargs):
     pkg_ros_gz_sim = get_package_share_directory('ros_gz_sim')
 
     # 2. Iniciar Gazebo
-    world_file = os.path.join(pkg_proyecto_abp, 'world', 'laberinto_world.sdf') 
+    world_file = os.path.join(pkg_proyecto_abp, 'world', 'laberinto_v1_world.sdf') 
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(pkg_ros_gz_sim, 'launch', 'gz_sim.launch.py')
@@ -86,7 +86,7 @@ def launch_setup(context, *args, **kwargs):
                 '-string', robot_desc_cmd,
                 '-x', '0.0',
                 '-y', str(y_pose), # Posición calculada antes
-                '-z', '0.2'
+                '-z', '2'
             ],
             output='screen'
         )
