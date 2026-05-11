@@ -5,7 +5,7 @@ from std_msgs.msg import Float32, Bool, String
 import numpy as np
 import matplotlib.pyplot as plt
 from proyecto_abp.finiteStateMachine import STATE_TOPIC, STATES
-
+from proyecto_abp.cameraProcessor import GOAL_TOPIC
 
 
 SCAN_TOPIC = '/scan'  # Topic del laser
