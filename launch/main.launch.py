@@ -8,7 +8,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, Command
 from launch_ros.actions import Node
 
-ROBOT_XACRO = 'robot.urdf.xacro'
+ROBOT_XACRO = 'my_robot.xacro'
 
 def generate_launch_description():
     return LaunchDescription([
