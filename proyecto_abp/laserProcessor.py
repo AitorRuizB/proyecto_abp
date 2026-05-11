@@ -5,7 +5,7 @@ from std_msgs.msg import Float32, Bool, String
 import numpy as np
 import matplotlib.pyplot as plt
 from finiteStateMachine import STATE_TOPIC, STATES
-
+from cameraProcessor import GOAL_TOPIC
 
 SCAN_TOPIC = '/scan'  # Topic del laser
 ERROR_TOPIC = '/laser_error' # Topic para publicar el error del laser (distancia al obstáculo más cercano)
@@ -71,6 +71,9 @@ class Vfh:
     def set_status(self, status):
         self.status = status 
     
+    def set_goal(self, goal):
+        self.goal_direction = goal
+
     def process_laser_data(self):
         if self.laser_data is None or self.total_points == 0:
             return
@@ -170,8 +173,7 @@ class Vfh:
             else:
                 # Si no se pudo calcular, ir recto por defecto
                 self.goal_direction = 0.0
-        else:
-            #print("Direccion RECTO")
+        elif self.status == STATES[0]:
             # Si hay un obstáculo cercano, el objetivo por defeto es ir recto para sortearlo
             self.goal_direction = 0.0
 
@@ -268,6 +270,7 @@ class LaserProcessor(Node):
         )
         # subscribe to fsm node
         self.fsm_st = self.create_subscription(String, self.robot_id + STATE_TOPIC, self.fsm_callback, 10)
+        self.goal_subscriber = self.create_subscription(Float32, self.robot_id + GOAL_TOPIC, self.goal_callback, 10)
 
         # publisher
         self.laser_error_publisher = self.create_publisher(Float32, self.robot_id + ERROR_TOPIC, 10)
@@ -277,6 +280,8 @@ class LaserProcessor(Node):
         
         self.get_logger().info(f'Laser processor initialized for {self.robot_id}')
 
+    def goal_callback(self, msg):
+        self.vfh.set_goal(msg.data)
 
     def fsm_callback(self, msg):
         if msg.data in STATES:
