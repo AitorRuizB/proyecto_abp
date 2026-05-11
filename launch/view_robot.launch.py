@@ -8,7 +8,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 
 RVIZ_FILE = 'robot_0.rviz'
-GZ_WORLD_FILE = 'laberinto_v1_world.sdf'
+GZ_WORLD_FILE = 'laberinto_world.sdf'
 
 def launch_setup(context, *args, **kwargs):
     num_robots = int(LaunchConfiguration('num_robots').perform(context))
@@ -194,7 +194,7 @@ def generate_launch_description():
     rviz_config_path = os.path.join(robot_bringup_package_dir, 'rviz', RVIZ_FILE)
     
     # IMPORTANTE: Definimos la ruta a tu mundo personalizado
-    world_file_path = os.path.join(robot_bringup_package_dir, 'worlds', GZ_WORLD_FILE)
+    world_file_path = os.path.join(robot_bringup_package_dir, 'world', GZ_WORLD_FILE)
 
     # Set Gazebo resource path
     gazebo_resource_path = os.path.dirname(robot_bringup_package_dir)

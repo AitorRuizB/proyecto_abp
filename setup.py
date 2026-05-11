@@ -18,7 +18,7 @@ setup(
         (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
         (os.path.join('share', package_name, 'rviz'), glob('rviz/*.rviz')),
         (os.path.join('share', package_name, 'urdf'), glob('urdf/*.xacro') + glob('urdf/*.urdf')),
-        (os.path.join('share', package_name, 'worlds'), glob('worlds/*.sdf') + glob('worlds/*.world')),
+        (os.path.join('share', package_name, 'world'), glob('world/*.sdf') + glob('world/*.world')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
