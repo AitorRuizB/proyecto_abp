@@ -173,7 +173,7 @@ class Vfh:
             else:
                 # Si no se pudo calcular, ir recto por defecto
                 self.goal_direction = 0.0
-        elif self.status == STATES[0]:
+        else:
             # Si hay un obstáculo cercano, el objetivo por defeto es ir recto para sortearlo
             self.goal_direction = 0.0
 
@@ -281,7 +281,8 @@ class LaserProcessor(Node):
         self.get_logger().info(f'Laser processor initialized for {self.robot_id}')
 
     def goal_callback(self, msg):
-        self.vfh.set_goal(msg.data)
+        if self.vfh.status == STATES[2]: # Si estamos en el estado de navegar pasillos se puede actualizar el objetivo dinámicamente desde el nodo de navegación
+            self.vfh.set_goal(msg.data)
 
     def fsm_callback(self, msg):
         if msg.data in STATES:
