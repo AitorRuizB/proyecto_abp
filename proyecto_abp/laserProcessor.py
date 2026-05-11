@@ -81,30 +81,23 @@ class Vfh:
 
         N = self.total_points # N puntos detectados
 
-        # 1. Generar array continuo asumiendo el barrido real del sensor.
-        # El sensor empieza en +90º (Izquierda), pasa por 0º (Frente),
-        # luego -90º (Derecha) y sigue hasta completar los 360º (-270º).
-        angles = np.linspace(np.pi/2, -3 * np.pi/2, N, endpoint=False)
-        # añadir offset de -90º para alinear el ángulo 0 con la dirección frontal del robot
-        angles = angles - np.pi/2
-        # 2. Normalizar los ángulos al rango [-pi, pi] usando la operación módulo.
-        # Esto automáticamente convierte el tramo que baja de -180º a -270º 
-        # en sus correspondientes positivos de +180º bajando a +90º.
-        angles = (angles + np.pi) % (2 * np.pi) - np.pi
-
-        #TODO añadir offset a los elementos de laser data
-        # el i = 0 debe ir movido n/4 posiciones y asi sucesivamente para alinear el primer elemento con el ángulo correcto
-        #ranges = 
-    
-        # mostrar con self logger el maximo leiod y la direccion
-        max_range = np.max(ranges)
-        max_range_angle = angles[np.argmax(ranges)]
-        print(f"Max range: {max_range:.2f} m at angle {np.degrees(max_range_angle):.1f}º")   
+        # 1. Generar array continuo. El barrido real del sensor es antihorario,
+        # empezando desde la parte trasera (-180º), pasando por derecha (-90º), 
+        # frente (0º) y terminando en la izquierda (+90º).
+        angles = np.linspace(-np.pi, np.pi, N, endpoint=False)
         
-        # 3. Ordenar puntos por ángulo de -pi a pi
+        # 2. Normalizar los ángulos al rango [-pi, pi] usando la operación módulo.
+        angles = (angles + np.pi) % (2 * np.pi) - np.pi
+        #print(f"Distance data (m): {self.laser_data} at angles (rad): {angles}")
+        ranges = self.laser_data
+
+        # 4. Ordenar puntos por ángulo de -pi/2 a pi/2
         sort_indices = np.argsort(angles, kind='mergesort')
         sorted_angles = angles[sort_indices]
         sorted_ranges = ranges[sort_indices]
+
+        # Intercambiar el orden de los ranges para que correspondan al orden de los ángulos
+        sorted_ranges = sorted_ranges[::-1]
 
         # Actualizamos la variable de la clase. Cada fila es [ángulo, distancia]
         self.laser_points = np.column_stack((sorted_angles, sorted_ranges))
