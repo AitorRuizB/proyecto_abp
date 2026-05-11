@@ -48,16 +48,21 @@ class Recon:
 
 
     def set_frame(self, frame):
-        """Almacena el frame actual para su procesamiento."""
-        self.frame = frame
-    
+        """Almacena y redimensiona el frame actual para reducir coste computacional."""
+        if frame is None:
+            self.frame = None
+            return
+        # Reducir la imagen a la mitad para aligerar el procesamiento
+        self.frame = cv2.resize(frame, (0, 0), fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA)
+
     def detect_color(self, color_name="purple"):
         """Aplica los filtros de OpenCV y devuelve la máscara segmentada."""
         if self.frame is None:
             return None
         
         # 1. Aplicar Gaussian Blur para reducir el ruido
-        blurred = cv2.GaussianBlur(self.frame, (9, 9), 0)
+        # 1. Aplicar Gaussian Blur para reducir el ruido (kernel reducido para mayor rendimiento)
+        blurred = cv2.GaussianBlur(self.frame, (5, 5), 0)
         
         # 2. Cambiar al espacio de color HSV
         hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
@@ -426,15 +431,18 @@ class CameraProcessor(Node):
             self.get_logger().error(f'Error en image_callback: {e}')
 
     def display_callback(self):
-        """Publica la imagen procesada a un topic y la muestra en una ventana si está habilitado."""
+        """Publica y muestra la imagen procesada en una ventana si SHOW_CAMERA_FEED es True."""
         if self.result is not None and self.dynamic_camera_feed:
-            # Publicar siempre la imagen procesada para RViz
             try:
+                # Publicar la imagen procesada para RViz
                 processed_img_msg = self.bridge.cv2_to_imgmsg(self.result, "bgr8")
                 self.processed_image_publisher_.publish(processed_img_msg)
-            except cv_bridge.CvBridgeError as e:
-                self.get_logger().error(f'Error al convertir imagen para publicar: {e}')
 
+                # Mostrar en ventana de OpenCV
+                cv2.imshow(self.window_name, self.result)
+                cv2.waitKey(1)
+            except cv_bridge.CvBridgeError as e:
+                self.get_logger().error(f'Error al convertir/publicar imagen: {e}')
 
     def goal_publish_callback(self):
         """Se ejecuta a baja frecuencia (1 Hz) para publicar el goal calculado."""
