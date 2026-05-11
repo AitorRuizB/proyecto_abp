@@ -119,7 +119,7 @@ class PDController(Node):
                 cmd.linear.x = VCONS * self.laserPD_gains[0].getKp() # controlador porporcional de velocidad lineal
                 # Controlador PD para steering
                 control_law = (self.laserPD_gains[1].getKp() * self.laser_error) + (self.laserPD_gains[1].getKd() * (self.laser_error - self.previous_laser_error) * FREQUENCY)
-                #self.get_logger().info('Buscando pasillo...')
+                self.get_logger().info('Buscando pasillo...')
                 self.controller_consecutive_actions_sent = 0
 
             else: # Approach hallway
@@ -127,7 +127,7 @@ class PDController(Node):
                 derivative = (self.visual_error - self.previous_visual_error) * FREQUENCY
                 # Calcular la señal de control PD
                 control_law = (self.visualPD_gains.getKp() * self.visual_error) + (self.visualPD_gains.getKd() * derivative)
-                #self.get_logger().info('Aproximando puerta con Visual based PD Controller...')
+                self.get_logger().info('Aproximando puerta con Visual based PD Controller...')
 
         elif self.fsm_st == STATES[1]: # Aprox puerta
             # Controlador proporcional de velocidad lineal
@@ -147,8 +147,7 @@ class PDController(Node):
             #self.get_logger().info('Navegando pasillo...')
 
         # Asignar steering
-        cmd.angular.z = 0.0
-        cmd.linear.x = 0.0
+        cmd.angular.z = -control_law
 
        
 
