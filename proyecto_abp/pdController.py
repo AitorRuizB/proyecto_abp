@@ -2,12 +2,14 @@ import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Float32, Bool, String
-import csv
-import os
-from datetime import datetime
 from proyecto_abp.cameraProcessor import ERROR_TOPIC as VISUAL_ERROR_TOPIC, HALLWAY_TOPIC
 from proyecto_abp.laserProcessor import ERROR_TOPIC as LASER_ERROR_TOPIC, OBSTACLE_TOPIC
 from proyecto_abp.finiteStateMachine import STATES, TRANSITIONS, TRANSITION_TOPIC, STATE_TOPIC, FREQUENCY
+"""
+import csv
+import os
+from datetime import datetime
+"""
 
 SCAN_TOPIC = '/scan'  # Topic del laser
 VELOCITY_TOPIC = '/cmd_vel'  # Topic para publicar comandos de velocidad
@@ -71,6 +73,7 @@ class PDController(Node):
         self.timer = self.create_timer(1.0 / FREQUENCY, self.control_loop) # Ejecutar el bucle de control a 10 Hz
         
         # --- INICIO: Configuración para guardado en CSV ---
+        """
         # Crear un nombre de archivo único para el log
         robot_name = self.robot_id.strip('/') # Eliminar la barra inicial para el nombre de archivo
         timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -87,6 +90,7 @@ class PDController(Node):
         # Escribir la cabecera
         self.csv_writer.writerow(['timestamp', 'visual_error', 'laser_error', 'control_law', 'fsm_state'])
         self.get_logger().info(f"Guardando datos de control en: {csv_filepath}")
+        """
         # --- FIN: Configuración para guardado en CSV ---
         
         self.get_logger().info(f'PDController para {self.robot_id} inicializado.')
@@ -189,13 +193,15 @@ class PDController(Node):
         self.previous_visual_error = self.visual_error
         self.previous_laser_error = self.laser_error
 
+    """
     def destroy_node(self):
-        """Limpia recursos, como cerrar el archivo CSV, antes de que el nodo se destruya."""
+        #Limpia recursos, como cerrar el archivo CSV, antes de que el nodo se destruya.
         if hasattr(self, 'csv_file') and self.csv_file:
             self.get_logger().info("Cerrando archivo CSV.")
             self.csv_file.close()
         super().destroy_node()
-
+    """
+        
 # -------------------------------- ZONA DE PRUEBAS DEL CONTROLADOR PD ------------------------------------------
 def main(args=None):
     """Función principal para inicializar y ejecutar el nodo PDController."""
@@ -206,7 +212,7 @@ def main(args=None):
     # rclpy.spin() se encargará de ejecutar el timer y los callbacks
     rclpy.spin(pd_controller)
 
-    pd_controller.destroy_node()
+    #pd_controller.destroy_node()
     rclpy.shutdown()
     
 if __name__ == '__main__':
