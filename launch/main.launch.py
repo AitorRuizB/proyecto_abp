@@ -8,7 +8,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, Command
 from launch_ros.actions import Node
 
-ROBOT_XACRO = 'robot.urdf.xacro'
+ROBOT_XACRO = 'my_robot.xacro'
 
 def generate_launch_description():
     return LaunchDescription([
@@ -49,7 +49,7 @@ def launch_setup(context, *args, **kwargs):
 
     # 4. Bucle para instanciar cada robot
     for i in range(1, num_robots + 1):
-        robot_name = f'robot{i}'
+        robot_name = f'robot_{i}'
         prefix = f'{robot_name}/'
         
         # Separar los robots 1 metro en el eje Y para que no choquen
