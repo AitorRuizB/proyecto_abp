@@ -12,7 +12,7 @@ ERROR_TOPIC = '/visual_error' # float con componente X del centro de masas de la
 HALLWAY_TOPIC = '/hallway' # bool indicando si se ha detectado puerta y trampilla (True) o no (False)
 GOAL_TOPIC = '/goal' # float indicando idreccion pbjetivo para el controlador
 SHOW_CAMERA_FEED = False # for debug purposes
-MAX_ANGLE = 5.0 # angulo de desviacion para mapear goal al controlador basado en Laser
+MAX_ANGLE = 2.5 # angulo de desviacion para mapear goal al controlador basado en Laser
 class Recon:
     """
     ## Clase a bajo nivel ##
