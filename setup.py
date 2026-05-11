@@ -18,6 +18,7 @@ setup(
         (os.path.join('share', package_name, 'world'), glob('world/*')),
         (os.path.join('share', package_name, 'rviz'), glob('rviz/*')),
         (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
+        (os.path.join('share', package_name, 'config'), glob('config/*.pgm')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -35,6 +36,7 @@ setup(
             'map_merge=proyecto_abp.custom_map_merger:main',
             'send_goal=proyecto_abp.send_goal:main',
             'start_nav = proyecto_abp.start_nav:main',
+            'start_slam = proyecto_abp.start_slam:main',
             
         ],
     },
