@@ -2,14 +2,11 @@ import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Float32, Bool, String
-import csv
-import os
-from datetime import datetime
-from cameraProcessor import ERROR_TOPIC as VISUAL_ERROR_TOPIC, HALLWAY_TOPIC
-from laserProcessor import ERROR_TOPIC as LASER_ERROR_TOPIC, OBSTACLE_TOPIC
-from finiteStateMachine import STATES, TRANSITIONS, TRANSITION_TOPIC, STATE_TOPIC, FREQUENCY
+from proyecto_abp.cameraProcessor import ERROR_TOPIC as VISUAL_ERROR_TOPIC, HALLWAY_TOPIC
+from proyecto_abp.laserProcessor import ERROR_TOPIC as LASER_ERROR_TOPIC, OBSTACLE_TOPIC
+from proyecto_abp.finiteStateMachine import STATES, TRANSITIONS, TRANSITION_TOPIC, STATE_TOPIC, FREQUENCY
 
-SCAN_TOPIC = '/scan'  # Topic del laser
+
 VELOCITY_TOPIC = '/cmd_vel'  # Topic para publicar comandos de velocidad
 VCONS = 0.25
 
@@ -34,7 +31,7 @@ class PDControllerParams():
         self.kd = kd
         
 class PDController(Node):
-    def __init__(self, robot_id):
+    def __init__(self):
         super().__init__('pd_controller')
         
         # PD controller gains para visual y laser 
@@ -49,7 +46,7 @@ class PDController(Node):
         self.controller_consecutive_actions_sent = 0 # detectar si ha conseguido minimizar el error visual
         self.fsm_st = STATES[0] # estado inicial de la FSM
 
-        self.robot_id = robot_id # id is a namespace like '/robot_1'
+        self.robot_id = self.get_namespace() # id is a namespace like '/robot_1'
         
         # Suscripción a los topics de la cámara
         self.create_subscription(Float32, self.robot_id + VISUAL_ERROR_TOPIC, self.visual_error_callback, 10)
@@ -64,30 +61,12 @@ class PDController(Node):
 
         # Estado actual del pasillo y el objetivo
         self.hallway_detected = False
-        self.visual_error = None
-        self.laser_error = None
+        self.visual_error = 0.0
+        self.laser_error = 0.0
         self.there_is_obstacle = False
         self.visual_controller_success = False        # Timer para el bucle de control principal
         self.timer = self.create_timer(1.0 / FREQUENCY, self.control_loop) # Ejecutar el bucle de control a 10 Hz
         
-        # --- INICIO: Configuración para guardado en CSV ---
-        # Crear un nombre de archivo único para el log
-        robot_name = self.robot_id.strip('/') # Eliminar la barra inicial para el nombre de archivo
-        timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-        # Directorio para guardar los CSV
-        csv_dir = "csv"
-        os.makedirs(csv_dir, exist_ok=True)
-        csv_filepath = os.path.join(csv_dir, f"pd_controller_log_{robot_name}_{timestamp_str}.csv")
-        
-        # Abrir el archivo y crear el writer
-        self.csv_file = open(csv_filepath, 'w', newline='')
-        self.csv_writer = csv.writer(self.csv_file)
-        
-        # Escribir la cabecera
-        self.csv_writer.writerow(['timestamp', 'visual_error', 'laser_error', 'control_law', 'fsm_state'])
-        self.get_logger().info(f"Guardando datos de control en: {csv_filepath}")
-        # --- FIN: Configuración para guardado en CSV ---
         
         self.get_logger().info(f'PDController para {self.robot_id} inicializado.')
 
@@ -118,10 +97,6 @@ class PDController(Node):
         if msg.data in STATES:
             self.fsm_st = msg.data
 
-    def csv_data_saving(self, timestamp, visual_error, laser_error, control_law, fsm_state):
-        """Guarda una fila de datos en el archivo CSV."""
-        self.csv_writer.writerow([timestamp, visual_error, laser_error, control_law, fsm_state])
-    
     
     def control_loop(self):
         """Bucle de control principal que se ejecuta periódicamente."""
@@ -130,7 +105,7 @@ class PDController(Node):
         
         cmd = Twist()
         cmd.linear.x = VCONS  # Usar la velocidad lineal del láser para evitar obstáculos
-        
+        control_law = 0.0
         # flag para detectar que el controlador visual llevo al robot por la puerta
         self.visual_controller_success = self.controller_consecutive_actions_sent > 50 and abs(self.previous_visual_error) == 1.0 and self.hallway_detected
 
@@ -174,11 +149,7 @@ class PDController(Node):
         # Asignar steering
         cmd.angular.z = -control_law
 
-        # --- INICIO: Guardado de datos en CSV ---
-        current_time = self.get_clock().now()
-        timestamp_sec = current_time.nanoseconds / 1e9
-        self.csv_data_saving(timestamp_sec, self.visual_error, self.laser_error, control_law, self.fsm_st)
-        # --- FIN: Guardado de datos en CSV ---
+       
 
         #self.get_logger().info(f"VLineal: {cmd.linear.x:.2f}, Angular: {cmd.angular.z:.2f}, Error Visual: {self.visual_error:.2f}, Error Laser: {self.laser_error:.2f}, Obstacle?: {self.there_is_obstacle}")
         self.controller_consecutive_actions_sent += 1
@@ -188,24 +159,16 @@ class PDController(Node):
         self.previous_visual_error = self.visual_error
         self.previous_laser_error = self.laser_error
 
-    def destroy_node(self):
-        """Limpia recursos, como cerrar el archivo CSV, antes de que el nodo se destruya."""
-        if hasattr(self, 'csv_file') and self.csv_file:
-            self.get_logger().info("Cerrando archivo CSV.")
-            self.csv_file.close()
-        super().destroy_node()
 
 # -------------------------------- ZONA DE PRUEBAS DEL CONTROLADOR PD ------------------------------------------
 def main(args=None):
     """Función principal para inicializar y ejecutar el nodo PDController."""
     rclpy.init(args=args)
-    robot_id = '/robot_0'  # Cambia esto según el robot que quieras controlar
-    pd_controller = PDController(robot_id)
+    pd_controller = PDController()
 
     # rclpy.spin() se encargará de ejecutar el timer y los callbacks
     rclpy.spin(pd_controller)
 
-    pd_controller.destroy_node()
     rclpy.shutdown()
     
 if __name__ == '__main__':

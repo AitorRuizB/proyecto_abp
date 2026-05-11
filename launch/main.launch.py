@@ -3,9 +3,10 @@ import yaml
 import tempfile
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction, RegisterEventHandler, TimerAction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, Command
+from launch.event_handlers import OnProcessStart
 from launch_ros.actions import Node
 
 ROBOT_XACRO = 'my_robot.xacro'
@@ -26,7 +27,7 @@ def launch_setup(context, *args, **kwargs):
     pkg_ros_gz_sim = get_package_share_directory('ros_gz_sim')
 
     # 2. Iniciar Gazebo
-    world_file = os.path.join(pkg_proyecto_abp, 'world', 'laberinto_world.sdf') 
+    world_file = os.path.join(pkg_proyecto_abp, 'world', 'laberinto_v1_world.sdf') 
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(pkg_ros_gz_sim, 'launch', 'gz_sim.launch.py')
@@ -48,7 +49,7 @@ def launch_setup(context, *args, **kwargs):
     urdf_file = os.path.join(pkg_proyecto_abp, 'urdf', ROBOT_XACRO)
 
     # 4. Bucle para instanciar cada robot
-    for i in range(1, num_robots + 1):
+    for i in range(0, num_robots):
         robot_name = f'robot_{i}'
         prefix = f'{robot_name}/'
         
@@ -68,7 +69,7 @@ def launch_setup(context, *args, **kwargs):
         # Generar URDF con el prefijo insertado
         robot_desc_cmd = Command(['xacro ', urdf_file, ' prefix:=', prefix])
 
-        # Robot State Publisher (Uno independiente para cada robot)
+        # Robot State Publisher
         rsp_node = Node(
             package='robot_state_publisher',
             executable='robot_state_publisher',
@@ -85,31 +86,111 @@ def launch_setup(context, *args, **kwargs):
                 '-name', robot_name,
                 '-string', robot_desc_cmd,
                 '-x', '0.0',
-                '-y', str(y_pose), # Posición calculada antes
-                '-z', '0.2'
+                '-y', str(y_pose),
+                '-z', '2'
             ],
             output='screen'
         )
-
-        
 
         static_tf_node = Node(
             package='tf2_ros',
             executable='static_transform_publisher',
             name=f'static_tf_{robot_name}',
             arguments=[
-                '--x', '0.0', 
-                '--y', str(y_pose), 
-                '--z', '0.0',
-                '--yaw', '0.0',
-                '--pitch', '0.0', 
-                '--roll', '0.0', 
-                '--frame-id', 'map', 
-                '--child-frame-id', f'{robot_name}/odom'
+                '--x', '0.0', '--y', str(y_pose), '--z', '0.0',
+                '--yaw', '0.0', '--pitch', '0.0', '--roll', '0.0', 
+                '--frame-id', 'map', '--child-frame-id', f'{robot_name}/odom'
             ]
         )
 
-        nodes.extend([rsp_node, spawn_node, static_tf_node])
+        # Transformada adicional: odom -> base_footprint (necesaria para la jerarquía TF completa)
+        static_tf_odom_node = Node(
+            package='tf2_ros',
+            executable='static_transform_publisher',
+            name=f'static_tf_odom_{robot_name}',
+            arguments=[
+                '--x', '0.0', '--y', '0.0', '--z', '0.0',
+                '--yaw', '0.0', '--pitch', '0.0', '--roll', '0.0', 
+                '--frame-id', f'{robot_name}/odom', '--child-frame-id', f'{robot_name}/base_footprint'
+            ]
+        )
+
+        # -------------------------------------------------------------------------
+        # DEFINICIÓN DE LOS NODOS DE CONTROL
+        # Asumiendo que los ejecutables en setup.py se llaman igual que el archivo pero sin el .py
+        # -------------------------------------------------------------------------
+        fsm_node = Node(
+            package='proyecto_abp',
+            executable='finite_state_machine',
+            name=f'finite_state_machine_{robot_name}',
+            namespace=robot_name,
+            output='screen'
+        )
+
+        camera_node = Node(
+            package='proyecto_abp',
+            executable='camera_processor',
+            name=f'camera_processor_{robot_name}',
+            namespace=robot_name,
+            output='screen'
+        )
+
+        laser_node = Node(
+            package='proyecto_abp',
+            executable='laser_processor',
+            name=f'laser_processor_{robot_name}',
+            namespace=robot_name,
+            output='screen'
+        )
+
+        pd_node = Node(
+            package='proyecto_abp',
+            executable='pd_controller',
+            name=f'pd_controller_{robot_name}',
+            namespace=robot_name,
+            output='screen'
+        )
+
+        # -------------------------------------------------------------------------
+        # CADENA DE LANZAMIENTO SECUENCIAL (CASCADA)
+        # -------------------------------------------------------------------------
+        
+        # 1. Cuando Spawn arranca -> Lanza FSM
+        fsm_start = RegisterEventHandler(
+            OnProcessStart(
+                target_action=spawn_node,
+                on_start=[TimerAction(period=1.0, actions=[fsm_node])]
+            )
+        )
+
+        # 2. Cuando FSM arranca -> Lanza Cámara
+        camera_start = RegisterEventHandler(
+            OnProcessStart(
+                target_action=fsm_node,
+                on_start=[TimerAction(period=2.0, actions=[camera_node])]
+            )
+        )
+
+        # 3. Cuando Cámara arranca -> Lanza Láser
+        laser_start = RegisterEventHandler(
+            OnProcessStart(
+                target_action=camera_node,
+                on_start=[TimerAction(period=4.0, actions=[laser_node])]
+            )
+        )
+
+        # 4. Cuando Láser arranca -> Lanza Controlador PD
+        pd_start = RegisterEventHandler(
+            OnProcessStart(
+                target_action=laser_node,
+                on_start=[TimerAction(period=6.0, actions=[pd_node])]
+            )
+        )
+
+        nodes.extend([
+            rsp_node, spawn_node, static_tf_node, static_tf_odom_node,
+            fsm_start, camera_start, laser_start, pd_start
+        ])
 
     # 5. Guardar archivo YAML temporal y cargar el Bridge
     bridge_yaml_path = os.path.join(tempfile.gettempdir(), 'multirobot_bridge.yaml')
@@ -119,9 +200,7 @@ def launch_setup(context, *args, **kwargs):
     bridge_node = Node(
         package='ros_gz_bridge',
         executable='parameter_bridge',
-        parameters=[{
-            'config_file': bridge_yaml_path
-        }],
+        parameters=[{'config_file': bridge_yaml_path}],
         output='screen'
     )
 

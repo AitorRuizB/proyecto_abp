@@ -4,8 +4,9 @@ from sensor_msgs.msg import LaserScan
 from std_msgs.msg import Float32, Bool, String
 import numpy as np
 import matplotlib.pyplot as plt
-from finiteStateMachine import STATE_TOPIC, STATES
-from cameraProcessor import GOAL_TOPIC
+from proyecto_abp.finiteStateMachine import STATE_TOPIC, STATES
+
+
 
 SCAN_TOPIC = '/scan'  # Topic del laser
 ERROR_TOPIC = '/laser_error' # Topic para publicar el error del laser (distancia al obstáculo más cercano)
@@ -257,10 +258,15 @@ class Vfh:
         
 # ROS node to process laser scan data
 class LaserProcessor(Node):
-    def __init__(self, robot_id='/robot_0'):
+    def __init__(self):
         super().__init__('laser_processor')
+        
+        # Obtener el namespace dinámicamente
+        self.robot_id = self.get_namespace()
+        if self.robot_id == '/':
+            self.robot_id = '/robot_0'  # Default si no hay namespace
+        
         self.vfh = Vfh() # A LaserProcessor uses a Vfh
-        self.robot_id = robot_id
         # Subscribe to laser scan
         self.laser_subscription = self.create_subscription(
             LaserScan,

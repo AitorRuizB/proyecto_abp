@@ -12,9 +12,13 @@ TRANSITION_TOPIC = '/transition'  # Topic para publicar transiciones de estado
 STATE_TOPIC = '/state'  # Topic para publicar estados del robot
 
 class FiniteStateMachine(Node):
-    def __init__(self,robot_id='/robot_0'):
+    def __init__(self):
         super().__init__('finite_state_machine')
-        self.robot_id = robot_id
+        
+        # Obtener el namespace dinámicamente
+        self.robot_id = self.get_namespace()
+        if self.robot_id == '/':
+            self.robot_id = '/robot_0'  # Default si no hay namespace
         self.state_publisher = self.create_publisher(String, self.robot_id + STATE_TOPIC, 10)
         self.current_state = 'WANDER'  # Estado inicial
 
