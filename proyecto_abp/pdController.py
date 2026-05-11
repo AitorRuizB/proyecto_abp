@@ -31,7 +31,7 @@ class PDControllerParams():
         self.kd = kd
         
 class PDController(Node):
-    def __init__(self, robot_id):
+    def __init__(self):
         super().__init__('pd_controller')
         
         # PD controller gains para visual y laser 
@@ -46,7 +46,7 @@ class PDController(Node):
         self.controller_consecutive_actions_sent = 0 # detectar si ha conseguido minimizar el error visual
         self.fsm_st = STATES[0] # estado inicial de la FSM
 
-        self.robot_id = robot_id # id is a namespace like '/robot_1'
+        self.robot_id = self.get_namespace() # id is a namespace like '/robot_1'
         
         # Suscripción a los topics de la cámara
         self.create_subscription(Float32, self.robot_id + VISUAL_ERROR_TOPIC, self.visual_error_callback, 10)
@@ -61,8 +61,8 @@ class PDController(Node):
 
         # Estado actual del pasillo y el objetivo
         self.hallway_detected = False
-        self.visual_error = None
-        self.laser_error = None
+        self.visual_error = 0.0
+        self.laser_error = 0.0
         self.there_is_obstacle = False
         self.visual_controller_success = False        # Timer para el bucle de control principal
         self.timer = self.create_timer(1.0 / FREQUENCY, self.control_loop) # Ejecutar el bucle de control a 10 Hz
@@ -105,7 +105,7 @@ class PDController(Node):
         
         cmd = Twist()
         cmd.linear.x = VCONS  # Usar la velocidad lineal del láser para evitar obstáculos
-        
+        control_law = 0.0
         # flag para detectar que el controlador visual llevo al robot por la puerta
         self.visual_controller_success = self.controller_consecutive_actions_sent > 50 and abs(self.previous_visual_error) == 1.0 and self.hallway_detected
 
@@ -164,8 +164,7 @@ class PDController(Node):
 def main(args=None):
     """Función principal para inicializar y ejecutar el nodo PDController."""
     rclpy.init(args=args)
-    robot_id = '/robot_0'  # Cambia esto según el robot que quieras controlar
-    pd_controller = PDController(robot_id)
+    pd_controller = PDController()
 
     # rclpy.spin() se encargará de ejecutar el timer y los callbacks
     rclpy.spin(pd_controller)
