@@ -66,7 +66,7 @@ def launch_setup(context, *args, **kwargs):
         ])
 
         # Generar URDF con el prefijo insertado
-        robot_desc_cmd = Command(['xacro ', urdf_file, ' prefix:=', prefix])
+        robot_prefix = Command(['xacro ', urdf_file, ' prefix:=', prefix])
 
         # Robot State Publisher (Uno independiente para cada robot)
         rsp_node = Node(
@@ -74,7 +74,7 @@ def launch_setup(context, *args, **kwargs):
             executable='robot_state_publisher',
             name=f'robot_state_publisher_{robot_name}',
             namespace=robot_name,
-            parameters=[{'robot_description': robot_desc_cmd, 'use_sim_time': True}]
+            parameters=[{'robot_description': robot_prefix, 'use_sim_time': True}]
         )
 
         # Hacer aparecer al robot en Gazebo
@@ -83,7 +83,7 @@ def launch_setup(context, *args, **kwargs):
             executable='create',
             arguments=[
                 '-name', robot_name,
-                '-string', robot_desc_cmd,
+                '-string', robot_prefix,
                 '-x', '0.0',
                 '-y', str(y_pose), # Posición calculada antes
                 '-z', '0.2'
