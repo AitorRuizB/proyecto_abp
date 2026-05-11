@@ -49,7 +49,7 @@ def launch_setup(context, *args, **kwargs):
 
     # 4. Bucle para instanciar cada robot
     for i in range(1, num_robots + 1):
-        robot_name = f'robot{i}'
+        robot_name = f'robot_{i}'
         prefix = f'{robot_name}/'
         
         # Separar los robots 1 metro en el eje Y para que no choquen
