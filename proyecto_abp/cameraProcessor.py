@@ -11,7 +11,7 @@ import numpy as np
 ERROR_TOPIC = '/visual_error' # float con componente X del centro de masas de la puerta detectada
 HALLWAY_TOPIC = '/hallway' # bool indicando si se ha detectado puerta y trampilla (True) o no (False)
 GOAL_TOPIC = '/goal' # float indicando idreccion pbjetivo para el controlador
-SHOW_CAMERA_FEED = False # for debug purposes
+SHOW_CAMERA_FEED = True # for debug purposes
 MAX_ANGLE = 5.0 # angulo de desviacion para mapear goal al controlador basado en Laser
 class Recon:
     """
@@ -284,7 +284,7 @@ class Recon:
         else:
             # Si no hay obstáculos, el objetivo es ir recto (0 grados)
             self.goal = 0.0
-        print(f"Obstáculos detectados: {len(contornos_validos)} - Goal calculado: {self.goal:.2f} grados")
+        #print(f"Obstáculos detectados: {len(contornos_validos)} - Goal calculado: {self.goal:.2f} grados")
         # Añadir texto informativo a la imagen
         font = cv2.FONT_HERSHEY_SIMPLEX
         cv2.putText(output_img, f'Goal: {self.goal:.2f} deg', (10, 30), font, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
@@ -418,6 +418,7 @@ class CameraProcessor(Node):
             goal_msg = Float32()
             goal_msg.data = self.last_goal_value
             self.goal_publisher_.publish(goal_msg)
+            self._logger.info(f'Publicado goal: {self.last_goal_value:.2f} grados')
 
 
 def main(args=None):
