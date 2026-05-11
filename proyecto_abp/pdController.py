@@ -9,7 +9,8 @@ from proyecto_abp.finiteStateMachine import STATES, TRANSITIONS, TRANSITION_TOPI
 
 VELOCITY_TOPIC = '/cmd_vel'  # Topic para publicar comandos de velocidad
 VCONS = 0.25
-
+EPSILON = 5 # visual error in piels admited
+MIN_VIUSAL_TRACK_ITER = 20 # iterations of the visual controller to consider it successful and switch to laser based control
 class PDControllerParams():
 
     def __init__(self, kp, kd, sensor_type, is_steering):
@@ -107,7 +108,7 @@ class PDController(Node):
         cmd.linear.x = VCONS  # Usar la velocidad lineal del láser para evitar obstáculos
         control_law = 0.0
         # flag para detectar que el controlador visual llevo al robot por la puerta
-        self.visual_controller_success = self.controller_consecutive_actions_sent > 50 and abs(self.previous_visual_error) == 1.0 and self.hallway_detected
+        self.visual_controller_success = self.controller_consecutive_actions_sent > MIN_VIUSAL_TRACK_ITER and abs(self.previous_visual_error) <= EPSILON and self.hallway_detected
 
         if self.visual_controller_success:
             self.transition_publisher.publish(String(data=TRANSITIONS[0])) # cambio de estado
@@ -128,6 +129,7 @@ class PDController(Node):
                 # Calcular la señal de control PD
                 control_law = (self.visualPD_gains.getKp() * self.visual_error) + (self.visualPD_gains.getKd() * derivative)
                 self.get_logger().info('Aproximando puerta con Visual based PD Controller...')
+                self.controller_consecutive_actions_sent += 1
 
         elif self.fsm_st == STATES[1]: # Aprox puerta
             # Controlador proporcional de velocidad lineal
@@ -152,7 +154,6 @@ class PDController(Node):
        
 
         #self.get_logger().info(f"VLineal: {cmd.linear.x:.2f}, Angular: {cmd.angular.z:.2f}, Error Visual: {self.visual_error:.2f}, Error Laser: {self.laser_error:.2f}, Obstacle?: {self.there_is_obstacle}")
-        self.controller_consecutive_actions_sent += 1
 
         self.cmd_vel_publisher.publish(cmd)
         # actualizar error de los sensores
