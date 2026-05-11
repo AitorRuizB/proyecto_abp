@@ -85,14 +85,22 @@ class Vfh:
         # El sensor empieza en +90º (Izquierda), pasa por 0º (Frente),
         # luego -90º (Derecha) y sigue hasta completar los 360º (-270º).
         angles = np.linspace(np.pi/2, -3 * np.pi/2, N, endpoint=False)
-
+        # añadir offset de -90º para alinear el ángulo 0 con la dirección frontal del robot
+        angles = angles - np.pi/2
         # 2. Normalizar los ángulos al rango [-pi, pi] usando la operación módulo.
         # Esto automáticamente convierte el tramo que baja de -180º a -270º 
         # en sus correspondientes positivos de +180º bajando a +90º.
         angles = (angles + np.pi) % (2 * np.pi) - np.pi
 
-        ranges = self.laser_data
-
+        #TODO añadir offset a los elementos de laser data
+        # el i = 0 debe ir movido n/4 posiciones y asi sucesivamente para alinear el primer elemento con el ángulo correcto
+        #ranges = 
+    
+        # mostrar con self logger el maximo leiod y la direccion
+        max_range = np.max(ranges)
+        max_range_angle = angles[np.argmax(ranges)]
+        print(f"Max range: {max_range:.2f} m at angle {np.degrees(max_range_angle):.1f}º")   
+        
         # 3. Ordenar puntos por ángulo de -pi a pi
         sort_indices = np.argsort(angles, kind='mergesort')
         sorted_angles = angles[sort_indices]
@@ -147,7 +155,7 @@ class Vfh:
         # Heurística para encontrar la dirección más segura
         if not self.there_is_obstacle and self.status == STATES[0]:
             # Seleccionar en una vecindad self.neighbourhood_size el valor mediano con la probabilidad más baja
-            print("Calcula heuristica direccion")
+            #print("Calcula heuristica direccion")
 
             # 1. Definir el tamaño de la ventana de análisis en número de puntos del láser
             angle_increment_rad = (2 * np.pi) / self.total_points if self.total_points > 0 else 0.1
@@ -201,8 +209,7 @@ class Vfh:
 
         # comprobar si hay puntos bajo del umbral para detectar obstáculos dentro de la vecindad
         self.there_is_obstacle = bool(np.any((self.laser_points[:,1] < self.obstacle_threshold) & (np.abs(self.laser_points[:,0] - self.goal_direction) < np.radians(self.neighbourhood_size))))
-        if self.there_is_obstacle:
-            print("Hay un obstaculo")
+
         # inicializar la direccion seleccionada al objetivo
         selected_direction = self.goal_direction
         # Calcular función de costo basada en probabilidad de ocupacion 
