@@ -7,11 +7,11 @@ import cv_bridge
 import cv2
 import numpy as np
 
-
+CAMERA_TOPIC = '/camera/image_raw'  # Topic por defecto para la cámara (puede ser modificado dinámicamente)
 ERROR_TOPIC = '/visual_error' # float con componente X del centro de masas de la puerta detectada
 HALLWAY_TOPIC = '/hallway' # bool indicando si se ha detectado puerta y trampilla (True) o no (False)
 GOAL_TOPIC = '/goal' # float indicando idreccion pbjetivo para el controlador
-SHOW_CAMERA_FEED = True # for debug purposes
+SHOW_CAMERA_FEED = False # for debug purposes
 MAX_ANGLE = 5.0 # angulo de desviacion para mapear goal al controlador basado en Laser
 class Recon:
     """
@@ -48,16 +48,21 @@ class Recon:
 
 
     def set_frame(self, frame):
-        """Almacena el frame actual para su procesamiento."""
-        self.frame = frame
-    
+        """Almacena y redimensiona el frame actual para reducir coste computacional."""
+        if frame is None:
+            self.frame = None
+            return
+        # Reducir la imagen a la mitad para aligerar el procesamiento
+        self.frame = cv2.resize(frame, (0, 0), fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA)
+
     def detect_color(self, color_name="purple"):
         """Aplica los filtros de OpenCV y devuelve la máscara segmentada."""
         if self.frame is None:
             return None
         
         # 1. Aplicar Gaussian Blur para reducir el ruido
-        blurred = cv2.GaussianBlur(self.frame, (9, 9), 0)
+        # 1. Aplicar Gaussian Blur para reducir el ruido (kernel reducido para mayor rendimiento)
+        blurred = cv2.GaussianBlur(self.frame, (5, 5), 0)
         
         # 2. Cambiar al espacio de color HSV
         hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
@@ -203,6 +208,7 @@ class Recon:
         _, anchura = output_img.shape[:2]
         
         if puerta_detectada:
+            #print("Puerta detectada.")
             # Texto verde indicando puerta detectada
             cv2.putText(output_img, 'PUERTA DETECTADA', (anchura - 280, 40), font, 0.7, (0, 255, 0), 2, cv2.LINE_AA)
         if self.trampilla_detectada:
@@ -319,10 +325,17 @@ class CameraProcessor(Node):
         self.last_goal_value = 0.0
 
         # Empleamos el setter en el constructor con el topic por defecto
-        self.setCameraTopic(self.robot_id + '/camera/image')
+        # Intentar suscribirse con reintentos
+        try:
+            self.setCameraTopic(self.robot_id + CAMERA_TOPIC)
+        except Exception as e:
+            self.get_logger().error(f'Error crítico en suscripción a cámara: {e}')
+            raise
         
         # subscriptor a la fsm
+        self.fsm_st = STATES[0]  # Inicializar con estado por defecto (WANDER)
         self.create_subscription(String, self.robot_id + STATE_TOPIC, self.fsm_callback, 10)
+        self.get_logger().info(f'Suscrito a FSM state: {self.robot_id + STATE_TOPIC}')
 
 
         # publishers para los topics de error y hallway
@@ -330,25 +343,27 @@ class CameraProcessor(Node):
         self.hallway_publisher_ = self.create_publisher(Bool, self.robot_id + HALLWAY_TOPIC, 10)
         self.fsm_transition_publisher_ = self.create_publisher(String, self.robot_id + TRANSITION_TOPIC, 10)
         self.goal_publisher_ = self.create_publisher(Float32, self.robot_id + GOAL_TOPIC, 10)
+        self.processed_image_publisher_ = self.create_publisher(Image, self.robot_id + '/processed_image', 10)
         
         # Timer para publicar el goal a baja frecuencia (1 Hz)
         goal_timer_period = 1.0  # segundos (1 Hz)
         self.goal_timer = self.create_timer(goal_timer_period, self.goal_publish_callback)
         
+        # CREAMOS UN TIMER PARA LA INTERFAZ GRÁFICA Y PUBLICACIÓN (~30 FPS)
+        timer_period = 0.033  # segundos (1/30)
+        self.display_timer = self.create_timer(timer_period, self.display_callback)
+
         if self.dynamic_camera_feed:
-            # 1. CREAMOS LA VENTANA UNA SOLA VEZ AQUÍ
+            # Si está habilitado, creamos la ventana de OpenCV
             self.window_name = "Procesamiento de Puerta/Trampilla"
             cv2.namedWindow(self.window_name, cv2.WINDOW_AUTOSIZE)
-            
-            # 2. CREAMOS UN TIMER PARA LA INTERFAZ GRÁFICA (~30 FPS)
-            timer_period = 0.033  # segundos (1/30)
-            self.display_timer = self.create_timer(timer_period, self.display_callback)
-
         
         self.get_logger().info('Nodo CameraProcessor inicializado y listo.')
 
     def fsm_callback(self, msg: String):
-        self.fsm_st = msg.data if msg is not None else None
+        """Callback para recibir el estado actual de la FSM."""
+        if msg is not None and msg.data in STATES:
+            self.fsm_st = msg.data
    
     def setCameraTopic(self, topic: str):
         """
@@ -371,6 +386,11 @@ class CameraProcessor(Node):
     def image_callback(self, msg: Image):
         """Se ejecuta cada vez que llega una imagen. Solo procesa, NO dibuja."""
         try:
+            # Validar que el estado FSM esté inicializado
+            if self.fsm_st is None:
+                self.get_logger().warn('FSM state no está disponible aún')
+                return
+            
             # Convertir mensaje a OpenCV y procesar
             cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
             self.recon.set_frame(cv_image)
@@ -411,10 +431,18 @@ class CameraProcessor(Node):
             self.get_logger().error(f'Error en image_callback: {e}')
 
     def display_callback(self):
-        """Se ejecuta constantemente dictado por el timer. Se encarga del refresco gráfico."""
+        """Publica y muestra la imagen procesada en una ventana si SHOW_CAMERA_FEED es True."""
         if self.result is not None and self.dynamic_camera_feed:
-            cv2.imshow(self.window_name, self.result)
-            cv2.waitKey(1)
+            try:
+                # Publicar la imagen procesada para RViz
+                processed_img_msg = self.bridge.cv2_to_imgmsg(self.result, "bgr8")
+                self.processed_image_publisher_.publish(processed_img_msg)
+
+                # Mostrar en ventana de OpenCV
+                cv2.imshow(self.window_name, self.result)
+                cv2.waitKey(1)
+            except cv_bridge.CvBridgeError as e:
+                self.get_logger().error(f'Error al convertir/publicar imagen: {e}')
 
     def goal_publish_callback(self):
         """Se ejecuta a baja frecuencia (1 Hz) para publicar el goal calculado."""
@@ -422,7 +450,6 @@ class CameraProcessor(Node):
             goal_msg = Float32()
             goal_msg.data = self.last_goal_value
             self.goal_publisher_.publish(goal_msg)
-            self._logger.info(f'Publicado goal: {self.last_goal_value:.2f} grados')
 
 
 def main(args=None):

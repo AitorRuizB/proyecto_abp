@@ -134,7 +134,7 @@ class PDController(Node):
             cmd.linear.x = VCONS * self.laserPD_gains[0].getKp() # controlador porporcional de velocidad lineal
             # Controlador PD para steering
             control_law = (self.laserPD_gains[1].getKp() * self.laser_error) + (self.laserPD_gains[1].getKd() * (self.laser_error - self.previous_laser_error) * FREQUENCY)
-            self.get_logger().info('Aproximando puerta con Laser based PD Controller...')
+            #self.get_logger().info('Aproximando puerta con Laser based PD Controller...')
         
         # Estado navegacion por el pasillo -> PD laser based control con nuevas ganancias y umbrales
         elif self.fsm_st == STATES[2]: # NAVIGATING_HALLWAY
@@ -144,7 +144,7 @@ class PDController(Node):
             self.laserPD_gains[1].setKd(0.19)
             # Controlador PD para steering
             control_law = (self.laserPD_gains[1].getKp() * self.laser_error) + (self.laserPD_gains[1].getKd() * (self.laser_error - self.previous_laser_error) * FREQUENCY)
-            self.get_logger().info('Navegando pasillo...')
+            #self.get_logger().info('Navegando pasillo...')
 
         # Asignar steering
         cmd.angular.z = -control_law
