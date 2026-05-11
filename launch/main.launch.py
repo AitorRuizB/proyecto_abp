@@ -167,7 +167,7 @@ def launch_setup(context, *args, **kwargs):
         camera_start = RegisterEventHandler(
             OnProcessStart(
                 target_action=fsm_node,
-                on_start=[TimerAction(period=4.0, actions=[camera_node])]
+                on_start=[TimerAction(period=2.0, actions=[camera_node])]
             )
         )
 
@@ -175,7 +175,7 @@ def launch_setup(context, *args, **kwargs):
         laser_start = RegisterEventHandler(
             OnProcessStart(
                 target_action=camera_node,
-                on_start=[TimerAction(period=7.0, actions=[laser_node])]
+                on_start=[TimerAction(period=4.0, actions=[laser_node])]
             )
         )
 
@@ -183,7 +183,7 @@ def launch_setup(context, *args, **kwargs):
         pd_start = RegisterEventHandler(
             OnProcessStart(
                 target_action=laser_node,
-                on_start=[TimerAction(period=10.0, actions=[pd_node])]
+                on_start=[TimerAction(period=6.0, actions=[pd_node])]
             )
         )
 
