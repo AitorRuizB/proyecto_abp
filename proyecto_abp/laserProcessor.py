@@ -255,10 +255,15 @@ class Vfh:
         
 # ROS node to process laser scan data
 class LaserProcessor(Node):
-    def __init__(self, robot_id='/robot_0'):
+    def __init__(self):
         super().__init__('laser_processor')
+        
+        # Obtener el namespace dinámicamente
+        self.robot_id = self.get_namespace()
+        if self.robot_id == '/':
+            self.robot_id = '/robot_0'  # Default si no hay namespace
+        
         self.vfh = Vfh() # A LaserProcessor uses a Vfh
-        self.robot_id = robot_id
         # Subscribe to laser scan
         self.laser_subscription = self.create_subscription(
             LaserScan,

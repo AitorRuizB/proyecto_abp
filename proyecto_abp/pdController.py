@@ -36,8 +36,13 @@ class PDControllerParams():
         self.kd = kd
         
 class PDController(Node):
-    def __init__(self, robot_id):
+    def __init__(self):
         super().__init__('pd_controller')
+        
+        # Obtener el namespace dinámicamente
+        self.robot_id = self.get_namespace()
+        if self.robot_id == '/':
+            self.robot_id = '/robot_0'  # Default si no hay namespace
         
         # PD controller gains para visual y laser 
         self.visualPD_gains = PDControllerParams(kp=0.001, kd=0.0005, sensor_type='visual', is_steering=True)
@@ -50,8 +55,6 @@ class PDController(Node):
         self.previous_laser_error = 0.0
         self.controller_consecutive_actions_sent = 0 # detectar si ha conseguido minimizar el error visual
         self.fsm_st = STATES[0] # estado inicial de la FSM
-
-        self.robot_id = robot_id # id is a namespace like '/robot_1'
         
         # Suscripción a los topics de la cámara
         self.create_subscription(Float32, self.robot_id + VISUAL_ERROR_TOPIC, self.visual_error_callback, 10)
@@ -129,11 +132,15 @@ class PDController(Node):
     
     def control_loop(self):
         """Bucle de control principal que se ejecuta periódicamente."""
-        if self.laser_error is None or self.visual_error is None:
-            return
+        # Inicializar errores si es la primera vez
+        if self.laser_error is None:
+            self.laser_error = 0.0
+        if self.visual_error is None:
+            self.visual_error = 0.0
         
         cmd = Twist()
         cmd.linear.x = VCONS  # Usar la velocidad lineal del láser para evitar obstáculos
+        control_law = 0.0  # Inicializar control_law
         
         # flag para detectar que el controlador visual llevo al robot por la puerta
         self.visual_controller_success = self.controller_consecutive_actions_sent > 50 and abs(self.previous_visual_error) == 1.0 and self.hallway_detected
@@ -206,8 +213,7 @@ class PDController(Node):
 def main(args=None):
     """Función principal para inicializar y ejecutar el nodo PDController."""
     rclpy.init(args=args)
-    robot_id = '/robot_0'  # Cambia esto según el robot que quieras controlar
-    pd_controller = PDController(robot_id)
+    pd_controller = PDController()
 
     # rclpy.spin() se encargará de ejecutar el timer y los callbacks
     rclpy.spin(pd_controller)

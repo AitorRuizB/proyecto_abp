@@ -222,13 +222,17 @@ class CameraProcessor(Node):
     ## Clase a alto nivel ##
     Administra el nodo y la suscripción a los topics de ROS2.
     """
-    def __init__(self, robot_id='/robot_0'):
+    def __init__(self):
         super().__init__('camera_processor')
+        
+        # Obtener el namespace dinámicamente
+        self.robot_id = self.get_namespace()
+        if self.robot_id == '/':
+            self.robot_id = '/robot_0'  # Default si no hay namespace
         
         self.recon = Recon() # A CameraProcessor uses a Recon para el procesamiento de imagen
         self.bridge = cv_bridge.CvBridge()
         self.image_subscription = None
-        self.robot_id = robot_id
         # Variable para almacenar el último frame procesado de forma segura
         self.latest_mask = None
         self.result = None

@@ -103,6 +103,18 @@ def launch_setup(context, *args, **kwargs):
             ]
         )
 
+        # Transformada adicional: odom -> base_footprint (necesaria para la jerarquía TF completa)
+        static_tf_odom_node = Node(
+            package='tf2_ros',
+            executable='static_transform_publisher',
+            name=f'static_tf_odom_{robot_name}',
+            arguments=[
+                '--x', '0.0', '--y', '0.0', '--z', '0.0',
+                '--yaw', '0.0', '--pitch', '0.0', '--roll', '0.0', 
+                '--frame-id', f'{robot_name}/odom', '--child-frame-id', f'{robot_name}/base_footprint'
+            ]
+        )
+
         # -------------------------------------------------------------------------
         # DEFINICIÓN DE LOS NODOS DE CONTROL
         # Asumiendo que los ejecutables en setup.py se llaman igual que el archivo pero sin el .py
@@ -176,7 +188,7 @@ def launch_setup(context, *args, **kwargs):
         )
 
         nodes.extend([
-            rsp_node, spawn_node, static_tf_node, 
+            rsp_node, spawn_node, static_tf_node, static_tf_odom_node,
             fsm_start, camera_start, laser_start, pd_start
         ])
 
