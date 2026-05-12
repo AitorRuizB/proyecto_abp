@@ -132,6 +132,16 @@ def launch_setup(context, *args, **kwargs):
             parameters=[{'goal': goal}],
             output='screen'
         )
+        # Nodo gestor de alfombras (solo para robot_0 según tu petición)
+        carpet_node = Node(
+            package='proyecto_abp',
+            executable='carpet_manager',
+            name='carpet_color_manager',
+            output='screen'
+        )
+
+        # Lo añadimos a la lista de nodos a ejecutar
+        nodes.append(carpet_node)
 
         camera_node = Node(
             package='proyecto_abp',
