@@ -3,11 +3,13 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String 
 
-FREQUENCY = 50.0  # Frecuencia de control del MRS en Hz
+FREQUENCY = 25.0  # Frecuencia de control del MRS en Hz
 
-STATES = ['WANDER', 'APPROACH_DOOR','NAVIGATING_HALLWAY', 'MERGE_SLAM', 'NAV2TARGET']
-TRANSITIONS = ['HALLWAY_FOUND', 'DOOR_PASSED','TARGET_FOUND', 'GLOBAL_MAP_READY']
+POSSIBLE_GOALS = ['green', 'yellow', 'red', 'blue']
+STATES = ['WANDER', 'APPROACH_DOOR','NAVIGATING_HALLWAY','APPROACH_TARGET', 'MERGE_SLAM', 'NAV2TARGET']
+TRANSITIONS = ['HALLWAY_FOUND', 'DOOR_PASSED','TARGET_APPROACH','TARGET_LOCATED', 'GLOBAL_MAP_READY']
 
+GOAL_TOPIC = '/goal' # String indicando el objetivo a buscar
 TRANSITION_TOPIC = '/transition'  # Topic para publicar transiciones de estado
 STATE_TOPIC = '/state'  # Topic para publicar estados del robot
 
@@ -24,15 +26,21 @@ class FiniteStateMachine(Node):
 
         # subcribe to transitions topics to update the state
         self.create_subscription(String, self.robot_id + TRANSITION_TOPIC, self.transition_callback, 10)
+        self.goal_publisher = self.create_publisher(String, self.robot_id + GOAL_TOPIC, 10)
+        
+        # Leer el parámetro goal desde la configuración de ROS
+        self.declare_parameter('goal', 'green')
+        self.current_goal = self.get_parameter('goal').value
 
         # Create a timer to periodically publish the state at 12Hz
         self.create_timer(1.0 / FREQUENCY, self.periodic_publish)
 
-        self.get_logger().info(f"Finite State Machine for {self.robot_id} initialized.")
+        self.get_logger().info(f"Finite State Machine for {self.robot_id} initialized with goal: {self.current_goal}.")
 
     def periodic_publish(self):
-        """Called by a timer to periodically publish the current state."""
+        """Called by a timer to periodically publish the current state and goal."""
         self.publish_state(self.get_current_state())
+        self.publish_goal()
 
     def publish_state(self, state):
         is_new_state = self.current_state != state
@@ -46,6 +54,12 @@ class FiniteStateMachine(Node):
     def get_current_state(self):
         return self.current_state  
 
+    def publish_goal(self):
+        """Publica el objetivo actual en el topic /goal."""
+        goal_msg = String()
+        goal_msg.data = self.current_goal
+        self.goal_publisher.publish(goal_msg)
+
     def transition_callback(self, msg):
         transition = msg.data
         if transition in TRANSITIONS:
@@ -58,6 +72,12 @@ class FiniteStateMachine(Node):
             
             elif transition == TRANSITIONS[2] and self.get_current_state() != STATES[3]:
                 self.publish_state(STATES[3])
+
+            elif transition == TRANSITIONS[3] and self.get_current_state() != STATES[4]:
+                self.publish_state(STATES[4])
+
+            elif transition == TRANSITIONS[4] and self.get_current_state() != STATES[5]:
+                self.publish_state(STATES[5])
 
 def main(args=None):
     rclpy.init(args=args)

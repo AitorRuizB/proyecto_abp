@@ -276,7 +276,6 @@ class LaserProcessor(Node):
         )
         # subscribe to fsm node
         self.fsm_st = self.create_subscription(String, self.robot_id + STATE_TOPIC, self.fsm_callback, 10)
-        self.goal_subscriber = self.create_subscription(Float32, self.robot_id + GOAL_TOPIC, self.goal_callback, 10)
 
         # publisher
         self.laser_error_publisher = self.create_publisher(Float32, self.robot_id + ERROR_TOPIC, 10)
@@ -286,9 +285,6 @@ class LaserProcessor(Node):
         
         self.get_logger().info(f'Laser processor initialized for {self.robot_id}')
 
-    def goal_callback(self, msg):
-        if self.vfh.status == STATES[2]: # Si estamos en el estado de navegar pasillos se puede actualizar el objetivo dinámicamente desde el nodo de navegación
-            self.vfh.set_goal(msg.data)
 
     def fsm_callback(self, msg):
         if msg.data in STATES:

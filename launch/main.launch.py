@@ -10,11 +10,13 @@ from launch.event_handlers import OnProcessStart
 from launch_ros.actions import Node
 
 ROBOT_XACRO = 'my_robot.xacro'
-
+MAPA_WORLD_FILE = 'laberinto_v2_world.sdf'
 def generate_launch_description():
     return LaunchDescription([
         # Parámetro para elegir num de robots
         DeclareLaunchArgument('num_robots', default_value='2', description='Numero de robots a instanciar'),
+        # Parámetro para elegir el objetivo a buscar
+        DeclareLaunchArgument('goal', default_value='green', description='Objetivo a buscar (green, yellow, red, blue)'),
         OpaqueFunction(function=launch_setup)
     ])
 
@@ -22,12 +24,15 @@ def launch_setup(context, *args, **kwargs):
     # 1. Leer el número de robots desde el argumento de lanzamiento
     num_robots_str = LaunchConfiguration('num_robots').perform(context)
     num_robots = int(num_robots_str)
+    
+    # 2. Leer el objetivo desde el argumento de lanzamiento
+    goal = LaunchConfiguration('goal').perform(context)
 
     pkg_proyecto_abp = get_package_share_directory('proyecto_abp')
     pkg_ros_gz_sim = get_package_share_directory('ros_gz_sim')
 
-    # 2. Iniciar Gazebo
-    world_file = os.path.join(pkg_proyecto_abp, 'world', 'laberinto_v2_world.sdf') 
+    # 3. Iniciar Gazebo
+    world_file = os.path.join(pkg_proyecto_abp, 'world', MAPA_WORLD_FILE) 
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(pkg_ros_gz_sim, 'launch', 'gz_sim.launch.py')
@@ -37,7 +42,7 @@ def launch_setup(context, *args, **kwargs):
 
     nodes = [gazebo]
 
-    # 3. Configurar el Bridge Dinámicamente (YAML al vuelo)
+    # 4. Configurar el Bridge Dinámicamente (YAML al vuelo)
     bridge_config = []
 
     # El reloj y el árbol TF son ÚNICOS para todo el sistema
@@ -48,7 +53,7 @@ def launch_setup(context, *args, **kwargs):
 
     urdf_file = os.path.join(pkg_proyecto_abp, 'urdf', ROBOT_XACRO)
 
-    # 4. Bucle para instanciar cada robot
+    # 5. Bucle para instanciar cada robot
     for i in range(0, num_robots):
         robot_name = f'robot_{i}'
         prefix = f'{robot_name}/'
@@ -124,6 +129,7 @@ def launch_setup(context, *args, **kwargs):
             executable='finite_state_machine',
             name=f'finite_state_machine_{robot_name}',
             namespace=robot_name,
+            parameters=[{'goal': goal}],
             output='screen'
         )
 
@@ -189,10 +195,11 @@ def launch_setup(context, *args, **kwargs):
 
         nodes.extend([
             rsp_node, spawn_node, static_tf_node, static_tf_odom_node,
-            #fsm_start, camera_start, laser_start, pd_start
+            fsm_start 
+            #camera_start, laser_start, pd_start
         ])
 
-    # 5. Guardar archivo YAML temporal y cargar el Bridge
+    # 6. Guardar archivo YAML temporal y cargar el Bridge
     bridge_yaml_path = os.path.join(tempfile.gettempdir(), 'multirobot_bridge.yaml')
     with open(bridge_yaml_path, 'w') as f:
         yaml.dump(bridge_config, f, default_flow_style=False)
