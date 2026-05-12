@@ -1,10 +1,8 @@
 import rclpy
 from rclpy.node import Node
 from nav_msgs.msg import Odometry
-from std_msgs.msg import String
-import subprocess
-import os
-import json
+from std_msgs.msg import String, ColorRGBA
+from proyecto_abp.finiteStateMachine import STATES
 
 class MultiCarpetManager(Node):
     def __init__(self):
@@ -18,6 +16,12 @@ class MultiCarpetManager(Node):
             'purple_carpet_west':  {'x': (-5.02, -4.02), 'y': (0.5, 1.5), 'active': False}
         }
 
+        # Crear publicadores para cada alfombra (Tópico: /model/<nombre_alfombra>/color)
+        self.color_pubs = {}
+        for carpet_name in self.carpets.keys():
+            topic_name = f'/model/{carpet_name}/color'
+            self.color_pubs[carpet_name] = self.create_publisher(ColorRGBA, topic_name, 10)
+
         # Suscripciones
         self.create_subscription(Odometry, '/robot_0/odom', self.odom_callback, 10)
         self.create_subscription(String, '/robot_0/state', self.state_callback, 10)
@@ -26,10 +30,9 @@ class MultiCarpetManager(Node):
         self.get_logger().info('Esperando transición DOOR_PASSED para activar alfombras...')
 
     def state_callback(self, msg):
-        # Según tu FSM, tras DOOR_PASSED el estado cambia a NAVIGATING_HALLWAY
-        if msg.data == 'NAVIGATING_HALLWAY':
+        if msg.data == STATES[2]:  # Nav hallway
             if not self.can_activate_carpets:
-                self.get_logger().info('¡Estado NAVIGATING_HALLWAY detectado! Sensores de alfombra listos.')
+                self.get_logger().info('Sensores de alfombra listos.')
             self.can_activate_carpets = True
 
     def odom_callback(self, msg):
@@ -53,62 +56,16 @@ class MultiCarpetManager(Node):
                 bounds['active'] = False
 
     def set_carpet_color(self, model_name, r, g, b):
-        """Cambia el color visual del modelo usando el servicio visual_config."""
+        """Publica el color en el tópico correspondiente a la alfombra."""
+        msg = ColorRGBA()
+        msg.r = float(r)
+        msg.g = float(g)
+        msg.b = float(b)
+        msg.a = 1.0 # Opacidad completa
         
-        try:
-            # Usar el servicio /world/laberinto_v2_world/visual_config
-            # Tipo: gz.msgs.Visual
-            # Formato: name: "<model_name>/link/visual", material: { diffuse: { r, g, b, a } }
-            
-            visual_data = f'''
-name: "{model_name}/link/visual"
-material {{
-  diffuse {{
-    r: {r}
-    g: {g}
-    b: {b}
-    a: 1.0
-  }}
-}}
-'''
-            
-            command = [
-                'gz', 'service',
-                '-s', '/world/laberinto_v2_world/visual_config',
-                '--reqtype', 'gz.msgs.Visual',
-                '--reptype', 'gz.msgs.Boolean',
-                '--timeout', '3000',
-                '--data', visual_data.strip()
-            ]
-            
-            self.get_logger().debug(f'Enviando petición para {model_name}...')
-            
-            result = subprocess.run(
-                command,
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            
-            self.get_logger().debug(f'Return code: {result.returncode}')
-            if result.stdout.strip():
-                self.get_logger().debug(f'Response: {result.stdout.strip()[:200]}')
-            if result.stderr.strip():
-                self.get_logger().debug(f'Error: {result.stderr.strip()[:200]}')
-            
-            if result.returncode == 0 or 'true' in result.stdout.lower():
-                self.get_logger().info(f'✓ {model_name}: RGB({r:.1f},{g:.1f},{b:.1f})')
-                return True
-                
-        except subprocess.TimeoutExpired:
-            self.get_logger().error(f'Timeout enviando comando a Gazebo')
-        except FileNotFoundError:
-            self.get_logger().error('Comando "gz" no encontrado')
-        except Exception as e:
-            self.get_logger().error(f'Error: {e}')
-        
-        return False
+        # Publicar el mensaje
+        self.color_pubs[model_name].publish(msg)
+        self.get_logger().debug(f'Publicado color RGB({r}, {g}, {b}) en /model/{model_name}/color')
 
 def main(args=None):
     rclpy.init(args=args)

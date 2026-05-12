@@ -624,6 +624,9 @@
         </inertial>
         <enable_wind>false</enable_wind>
       </link>
+      <plugin filename="libColorChangerPlugin.so" name="custom_plugins::ColorChangerPlugin">
+        <topic>/model/purple_carpet_north/color</topic> 
+      </plugin>
       <self_collide>false</self_collide>
     </model>
     <model name='purple_carpet_south'>
@@ -670,6 +673,9 @@
         </inertial>
         <enable_wind>false</enable_wind>
       </link>
+      <plugin filename="libColorChangerPlugin.so" name="custom_plugins::ColorChangerPlugin">
+        <topic>/model/purple_carpet_south/color</topic> 
+      </plugin>
       <self_collide>false</self_collide>
     </model>
     <model name='purple_carpet_east'>
@@ -716,6 +722,9 @@
         </inertial>
         <enable_wind>false</enable_wind>
       </link>
+      <plugin filename="libColorChangerPlugin.so" name="custom_plugins::ColorChangerPlugin">
+        <topic>/model/purple_carpet_east/color</topic> 
+      </plugin>
       <self_collide>false</self_collide>
     </model>
     <model name='purple_carpet_west'>
@@ -762,6 +771,9 @@
         </inertial>
         <enable_wind>false</enable_wind>
       </link>
+      <plugin filename="libColorChangerPlugin.so" name="custom_plugins::ColorChangerPlugin">
+        <topic>/model/purple_carpet_west/color</topic> 
+      </plugin>
       <self_collide>false</self_collide>
     </model>
     <model name='roman_arch_north'>

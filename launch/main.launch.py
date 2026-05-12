@@ -8,6 +8,8 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, Command
 from launch.event_handlers import OnProcessStart
 from launch_ros.actions import Node
+from launch.actions import AppendEnvironmentVariable
+from ament_index_python.packages import get_package_prefix
 
 ROBOT_XACRO = 'my_robot.xacro'
 MAPA_WORLD_FILE = 'laberinto_v2_world.sdf'
@@ -30,7 +32,17 @@ def launch_setup(context, *args, **kwargs):
 
     pkg_proyecto_abp = get_package_share_directory('proyecto_abp')
     pkg_ros_gz_sim = get_package_share_directory('ros_gz_sim')
+    
+    # --- NUEVO: Obtener la ruta de instalación de la librería C++ -------------------------
+    plugin_pkg_prefix = get_package_prefix('proyecto_abp_estigmergia_plugin')
+    plugin_lib_path = os.path.join(plugin_pkg_prefix, 'lib', 'proyecto_abp_estigmergia_plugin')
 
+    # Exportar la variable para que Gazebo encuentre libColorChangerPlugin.so
+    set_plugin_path = AppendEnvironmentVariable(
+        name='GZ_SIM_SYSTEM_PLUGIN_PATH',
+        value=plugin_lib_path
+    )
+    # --------------------------------------------------------------------------------------
     # 3. Iniciar Gazebo
     world_file = os.path.join(pkg_proyecto_abp, 'world', MAPA_WORLD_FILE) 
     gazebo = IncludeLaunchDescription(
@@ -50,6 +62,18 @@ def launch_setup(context, *args, **kwargs):
         {'ros_topic_name': '/clock', 'gz_topic_name': '/clock', 'ros_type_name': 'rosgraph_msgs/msg/Clock', 'gz_type_name': 'gz.msgs.Clock', 'direction': 'GZ_TO_ROS'},
         {'ros_topic_name': '/tf', 'gz_topic_name': '/tf', 'ros_type_name': 'tf2_msgs/msg/TFMessage', 'gz_type_name': 'gz.msgs.Pose_V', 'direction': 'GZ_TO_ROS'}
     ])
+    # ------------------ NUEVO BLOQUE: Bridge de colores para Estigmetría ------------------
+    nombres_alfombras = ['purple_carpet_north', 'purple_carpet_south', 'purple_carpet_east', 'purple_carpet_west']
+    for alfombra in nombres_alfombras:
+        topic_name = f'/model/{alfombra}/color'
+        bridge_config.append({
+            'ros_topic_name': topic_name,
+            'gz_topic_name': topic_name,
+            'ros_type_name': 'std_msgs/msg/ColorRGBA',
+            'gz_type_name': 'gz.msgs.Color',
+            'direction': 'ROS_TO_GZ'
+        })
+    # ---------------------------------------------------------------------
 
     urdf_file = os.path.join(pkg_proyecto_abp, 'urdf', ROBOT_XACRO)
 
