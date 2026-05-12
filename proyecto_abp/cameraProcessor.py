@@ -47,7 +47,7 @@ class Recon:
         return self.there_is_hallway
     
     def get_goal_identified(self):
-        print(f"Goal identificado?: {self.goal_identified} - Error actual: {self.error}")
+        #print(f"Goal identificado?: {self.goal_identified} - Error actual: {self.error}")
         return self.goal_identified
     
     def is_already_in_hallway(self):
@@ -240,7 +240,7 @@ class Recon:
     def detect_target(self, goal: str):
         """Lógica de procesamiento para detectar objetivos y devolver imagen con anotaciones."""
         if goal not in POSSIBLE_GOALS:
-            print("El goal no se mapea bien")
+            #print("El goal no se mapea bien")
             self.goal_identified = False
             self.error = None
             return self.frame.copy() if self.frame is not None else None
