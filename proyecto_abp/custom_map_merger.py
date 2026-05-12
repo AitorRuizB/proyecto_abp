@@ -2,46 +2,52 @@
 import rclpy
 from rclpy.node import Node
 from nav_msgs.msg import OccupancyGrid
+from rclpy.qos import QoSProfile, DurabilityPolicy # <--- IMPORTACIÓN DE QoS
 import numpy as np
 
 class DynamicMapMerger(Node):
     def __init__(self):
         super().__init__('custom_map_merger')
         
-        # 1. Declaramos y leemos el parámetro 'num_robots' (por defecto 2)
+        # 1. Parámetros
         self.declare_parameter('num_robots', 2)
         self.num_robots = self.get_parameter('num_robots').value
 
-        # Diccionarios dinámicos para N robots
-        self.map_msgs = {}   # Guarda el mapa de cada robot
-        self.offsets_y = {}  # Guarda el desplazamiento Y de cada robot
-        self.subs = []       # Guarda las suscripciones para que no mueran
+        # Perfil de QoS Estándar para Mapas (TRANSIENT LOCAL)
+        # Esto permite que el map_saver_cli reciba el mapa aunque el nodo ya lo haya publicado
+        map_qos = QoSProfile(
+            depth=1,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL
+        )
 
-        # 2. BUCLE MÁGICO: Creamos los suscriptores y offsets dinámicamente
-        for i in range(1, self.num_robots + 1):
-            robot_name = f'robot{i}'
+        self.map_msgs = {}   
+        self.offsets_y = {}  
+        self.subs = []       
+
+        # 2. Configuración dinámica de robots
+        for i in range(0, self.num_robots):
+            robot_name = f'robot_{i}'
             topic = f'/{robot_name}/map'
             
-            # Calculamos la misma distancia matemática que usas en el Launch
             self.offsets_y[robot_name] = float(i - 1) * 1.0 
             self.map_msgs[robot_name] = None
             
-            # Nos suscribimos usando una función generadora para no mezclar variables en el bucle
+            # Suscripción a los mapas individuales (Slam Toolbox suele usar Transient Local)
             self.subs.append(
                 self.create_subscription(
                     OccupancyGrid, 
                     topic, 
                     self.make_callback(robot_name), 
-                    10
+                    map_qos # Usamos el mismo QoS para leer
                 )
             )
 
-        self.pub = self.create_publisher(OccupancyGrid, '/map', 10)
-        self.timer = self.create_timer(0.5, self.merge_and_publish)
+        # 3. Publicador del mapa unido con QoS Correcto
+        self.pub = self.create_publisher(OccupancyGrid, '/map', map_qos)
         
-        self.get_logger().info(f"¡Cerebro Python INICIADO y escuchando a {self.num_robots} robots!")
+        self.timer = self.create_timer(1.0, self.merge_and_publish)
+        self.get_logger().info(f"Merger configurado con QoS TRANSIENT_LOCAL para {self.num_robots} robots.")
 
-    # Función factoría para crear callbacks independientes por robot
     def make_callback(self, robot_name):
         return lambda msg: self.map_cb(robot_name, msg)
 
@@ -49,14 +55,11 @@ class DynamicMapMerger(Node):
         self.map_msgs[robot_name] = msg
 
     def merge_and_publish(self):
-        # Buscamos el primer mapa que no sea nulo para sacar la resolución
         base_msg = next((msg for msg in self.map_msgs.values() if msg is not None), None)
         if not base_msg:
             return
 
         res = base_msg.info.resolution
-        
-        # Lienzo gigante (75x75 metros)
         canvas_size = 1500
         canvas = np.full((canvas_size, canvas_size), -1, dtype=np.int8)
         center_px = canvas_size // 2
@@ -72,19 +75,16 @@ class DynamicMapMerger(Node):
             px_start_x = center_px + int(origin_x / res)
             px_start_y = center_px + int(origin_y / res)
 
-            # Evitar salirnos del lienzo
             if px_start_x < 0 or px_start_y < 0 or px_start_x + w > canvas_size or px_start_y + h > canvas_size:
                 return
 
             valid_mask = data != -1
             canvas[px_start_y:px_start_y+h, px_start_x:px_start_x+w][valid_mask] = data[valid_mask]
 
-        # Pegamos TODO el diccionario de mapas en el lienzo
         for r_name, msg in self.map_msgs.items():
             if msg:
                 paste_map(msg, self.offsets_y[r_name])
 
-        # Publicamos
         merged_msg = OccupancyGrid()
         merged_msg.header.stamp = self.get_clock().now().to_msg()
         merged_msg.header.frame_id = 'map'
