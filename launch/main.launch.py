@@ -59,7 +59,7 @@ def launch_setup(context, *args, **kwargs):
         prefix = f'{robot_name}/'
         
         # Separar los robots 1 metro en el eje Y para que no choquen
-        y_pose = (i - 1) * 1.0  
+        y_pose = (i + 1) * 1.0  
 
         # Añadir puentes de este robot al bridge
         bridge_config.extend([

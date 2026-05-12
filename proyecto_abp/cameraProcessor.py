@@ -47,6 +47,7 @@ class Recon:
         return self.there_is_hallway
     
     def get_goal_identified(self):
+        print(f"Goal identificado?: {self.goal_identified} - Error actual: {self.error}")
         return self.goal_identified
     
     def is_already_in_hallway(self):
@@ -239,6 +240,7 @@ class Recon:
     def detect_target(self, goal: str):
         """Lógica de procesamiento para detectar objetivos y devolver imagen con anotaciones."""
         if goal not in POSSIBLE_GOALS:
+            print("El goal no se mapea bien")
             self.goal_identified = False
             self.error = None
             return self.frame.copy() if self.frame is not None else None
@@ -260,7 +262,7 @@ class Recon:
         contornos, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         
         # Filtrar contornos por área para eliminar ruido
-        contornos_validos = [c for c in contornos if cv2.contourArea(c) > 1000]
+        contornos_validos = [c for c in contornos if cv2.contourArea(c) > 500]
         cv2.drawContours(output_img, contornos_validos, -1, (255, 100, 0), 2)
                 
         if len(contornos_validos) > 0:
@@ -323,6 +325,8 @@ class CameraProcessor(Node):
         self.dynamic_camera_feed = SHOW_CAMERA_FEED
         self.fsm_st = None
         self.current_goal = None
+        self.target_approach_sent = False
+        self.target_approach_counter = 0
 
 
         # Empleamos el setter en el constructor con el topic por defecto
@@ -365,6 +369,10 @@ class CameraProcessor(Node):
     def fsm_callback(self, msg: String):
         """Callback para recibir el estado actual de la FSM."""
         if msg is not None and msg.data in STATES:
+            # Si el estado cambia, reseteamos los flags de transición para que puedan volver a enviarse
+            if self.fsm_st != msg.data:
+                self.target_approach_sent = False
+                self.target_approach_counter = 0
             self.fsm_st = msg.data
     
     def goal_callback(self, msg: String):
@@ -407,7 +415,7 @@ class CameraProcessor(Node):
                 purple_mask = self.recon.detect_color("purple")
                 self.result = self.recon.detect_hallway_entrance(purple_mask)
             
-            elif self.fsm_st == STATES[2]:  # NAVIGATING_HALLWAY
+            elif self.fsm_st in [STATES[2], STATES[3]]:  # NAVIGATING_HALLWAY, APPROACH_TARGET
                 if self.current_goal is not None:
                     self.result = self.recon.detect_target(self.current_goal)
                 else:
@@ -421,12 +429,9 @@ class CameraProcessor(Node):
             error_msg = Float32()
             hallway_msg = Bool()
             trans_msg = String()
-            goal_reached_msg = Bool()
 
             error_msg.data = self.recon.get_error() if self.recon.get_error() is not None else 0.0
-            hallway_msg.data = self.recon.get_hallway_status()
-            goal_reached_msg.data = self.recon.get_goal_identified()
-            
+            hallway_msg.data = self.recon.get_hallway_status()            
             
             # Lanzar transiciones si se dan las condiciones 
             if self.fsm_st == STATES[1] and self.recon.is_already_in_hallway(): # Envia transicion de estado a la FSM
@@ -436,8 +441,14 @@ class CameraProcessor(Node):
             # Publisher de realimentacion para el controlador PD (frecuencia de imagen)
             self.error_publisher_.publish(error_msg)
             self.hallway_publisher_.publish(hallway_msg)
-            self.goal_reached_publisher_.publish(goal_reached_msg)
             
+            # Transición robusta a APPROACH_TARGET
+            if self.fsm_st == STATES[2] and not self.target_approach_sent:
+                if self.recon.get_goal_identified():
+                    self.get_logger().info(f'Goal "{self.current_goal}" identificado. Contador de acercamiento: {self.target_approach_counter + 1}/3')
+                    trans_msg.data = TRANSITIONS[2] # TARGET_APPROACH
+                    self.fsm_transition_publisher_.publish(trans_msg)
+               
 
         except Exception as e:
             self.get_logger().error(f'Error en image_callback: {e}')

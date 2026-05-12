@@ -9,8 +9,8 @@ from proyecto_abp.finiteStateMachine import STATES, TRANSITIONS, TRANSITION_TOPI
 
 VELOCITY_TOPIC = '/cmd_vel'  # Topic para publicar comandos de velocidad
 VCONS = 0.25
-EPSILON = 25 # visual error in pixels admited
-MIN_VISUAL_TRACK_ITER = 5 # iterations of the visual controller to consider it successful and switch to laser based control
+EPSILON = 5 # visual error in pixels admited
+MIN_VISUAL_TRACK_ITER = 15 # iterations of the visual controller to consider it successful and switch to laser based control
 class PDControllerParams():
 
     def __init__(self, kp, kd, sensor_type, is_steering):
@@ -48,6 +48,7 @@ class PDController(Node):
         self.fsm_st = STATES[0] # estado inicial de la FSM
         self.transition_hallway_sent = False  # Flag para evitar publicar múltiples transiciones
         self.transition_hallway_counter = 0  # Contador para hacer transición más robusta
+        self.transition_target_located_sent = False  # Flag para evitar publicar múltiples transiciones a TARGET_LOCATED
 
         self.robot_id = self.get_namespace()
         if self.robot_id == '/':
@@ -88,6 +89,7 @@ class PDController(Node):
             self.previous_laser_error = 0.0
             self.visual_controller_success = False
             self.transition_hallway_sent = False  # Reset para próxima transición
+        #TODO hacer reset cuando sea el estado 
 
 
     def hallway_callback(self, msg):
@@ -158,15 +160,27 @@ class PDController(Node):
             control_law = (self.laserPD_gains[1].getKp() * self.laser_error) + (self.laserPD_gains[1].getKd() * (self.laser_error - self.previous_laser_error) * FREQUENCY)
             self.get_logger().info('Navegando pasillo...')
 
-        elif self.fsm_st == STATES[3]: # Approach target
+        elif self.fsm_st == STATES[3] and not self.transition_target_located_sent: # Approach target
             # Calcular el error y la derivada del error
             derivative = (self.visual_error - self.previous_visual_error) * FREQUENCY
             # Calcular la señal de control PD
             control_law = (self.visualPD_gains.getKp() * self.visual_error) + (self.visualPD_gains.getKd() * derivative)
-            cmd.linear.x = VCONS*0.5 # reducir velocidad para aproximación al objetivo
-            self.get_logger().info('Aproximando objetivo con Visual based PD Controller...')
+            cmd.linear.x = VCONS * 0.5 # reducir velocidad para aproximación al objetivo
+            self.get_logger().info(f'Aproximando objetivo (Visual) - Error: {self.visual_error:.2f}px')
+
+            # Detección robusta de objetivo para transición a TARGET_LOCATED
             if abs(self.visual_error) <= EPSILON:
-                self.transition_publisher.publish(String(data=TRANSITIONS[2])) # cambio de estado a target approach
+                self.transition_publisher.publish(String(data=TRANSITIONS[3])) # Publica TARGET_LOCATED
+                self.transition_target_located_sent = True
+                self.get_logger().info('✓ Transición publicada: TARGET_LOCATED')
+            else:
+                self.transition_target_counter = 0 # Resetea el contador si el error es grande
+
+        elif self.fsm_st == STATES[4]: # TARGET_LOCATED
+            control_law = 0.0
+            cmd.linear.x = 0.0 
+            self.get_logger().info('Objetivo alcanzado')
+            
 
         # === PUBLICAR TRANSICIÓN (UNA SOLA VEZ) ===
         if self.visual_controller_success and not self.transition_hallway_sent:

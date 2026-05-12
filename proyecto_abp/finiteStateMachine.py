@@ -6,7 +6,7 @@ from std_msgs.msg import String
 FREQUENCY = 20.0  # Frecuencia de control del MRS en Hz (sincronizada con cámara 30Hz)
 
 POSSIBLE_GOALS = ['green', 'yellow', 'red', 'blue']
-STATES = ['WANDER', 'APPROACH_DOOR','NAVIGATING_HALLWAY','APPROACH_TARGET', 'MERGE_SLAM', 'NAV2TARGET']
+STATES = ['WANDER', 'APPROACH_DOOR','NAVIGATING_HALLWAY','APPROACH_TARGET', 'FINISH_SLAM', 'NAV2TARGET']
 TRANSITIONS = ['HALLWAY_FOUND', 'DOOR_PASSED','TARGET_APPROACH','TARGET_LOCATED', 'GLOBAL_MAP_READY']
 
 GOAL_TOPIC = '/goal' # String indicando el objetivo a buscar
@@ -73,10 +73,10 @@ class FiniteStateMachine(Node):
             elif transition == TRANSITIONS[2] and self.get_current_state() != STATES[3]:
                 self.publish_state(STATES[3])
 
-            elif transition == TRANSITIONS[3] and self.get_current_state() != STATES[4]:
+            elif transition == TRANSITIONS[3] and self.get_current_state() != STATES[4]: # TARGET_LOCATED
                 self.publish_state(STATES[4])
 
-            elif transition == TRANSITIONS[4] and self.get_current_state() != STATES[5]:
+            elif transition == TRANSITIONS[4] and self.get_current_state() != STATES[5]: # GLOBAL_MAP_READY
                 self.publish_state(STATES[5])
 
 def main(args=None):
