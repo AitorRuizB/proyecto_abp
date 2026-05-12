@@ -3,10 +3,9 @@ import yaml
 import tempfile
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction, RegisterEventHandler, TimerAction
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, Command
-from launch.event_handlers import OnProcessStart
 from launch_ros.actions import Node
 
 ROBOT_XACRO = 'my_robot.xacro'
@@ -19,7 +18,7 @@ def generate_launch_description():
     ])
 
 def launch_setup(context, *args, **kwargs):
-    # 1. Leer el número de robots desde el argumento de lanzamiento
+    # 1. Leer el número de robots
     num_robots_str = LaunchConfiguration('num_robots').perform(context)
     num_robots = int(num_robots_str)
 
@@ -27,172 +26,78 @@ def launch_setup(context, *args, **kwargs):
     pkg_ros_gz_sim = get_package_share_directory('ros_gz_sim')
 
     # 2. Iniciar Gazebo
-    world_file = os.path.join(pkg_proyecto_abp, 'world', 'laberinto_v1_world.sdf') 
+    world_file = os.path.join(pkg_proyecto_abp, 'world', 'laberinto_v2_world.sdf') 
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(pkg_ros_gz_sim, 'launch', 'gz_sim.launch.py')
         ),
-        launch_arguments={'gz_args': f'-r {world_file}'}.items(),
+        launch_arguments={'gz_args': f'-r {world_file}'}.items()
     )
 
     nodes = [gazebo]
-
-    # 3. Configurar el Bridge Dinámicamente (YAML al vuelo)
     bridge_config = []
 
-    # El reloj y el árbol TF son ÚNICOS para todo el sistema
-    bridge_config.extend([
-        {'ros_topic_name': '/clock', 'gz_topic_name': '/clock', 'ros_type_name': 'rosgraph_msgs/msg/Clock', 'gz_type_name': 'gz.msgs.Clock', 'direction': 'GZ_TO_ROS'},
-        {'ros_topic_name': '/tf', 'gz_topic_name': '/tf', 'ros_type_name': 'tf2_msgs/msg/TFMessage', 'gz_type_name': 'gz.msgs.Pose_V', 'direction': 'GZ_TO_ROS'}
-    ])
-
-    urdf_file = os.path.join(pkg_proyecto_abp, 'urdf', ROBOT_XACRO)
-
-    # 4. Bucle para instanciar cada robot
-    for i in range(0, num_robots):
+    # 3. Bucle para configurar cada robot (Visualización y Transformaciones)
+    for i in range(num_robots):
         robot_name = f'robot_{i}'
-        prefix = f'{robot_name}/'
         
-        # Separar los robots 1 metro en el eje Y para que no choquen
-        y_pose = (i - 1) * 1.0  
+        # Posición inicial (escalonada en Y para que no choquen al aparecer)
+        y_pos = float(i) * -1.0 
 
-        # Añadir puentes de este robot al bridge
-        bridge_config.extend([
-            {'ros_topic_name': f'/{robot_name}/cmd_vel', 'gz_topic_name': f'/{robot_name}/cmd_vel', 'ros_type_name': 'geometry_msgs/msg/Twist', 'gz_type_name': 'gz.msgs.Twist', 'direction': 'ROS_TO_GZ'},
-            {'ros_topic_name': f'/{robot_name}/odom', 'gz_topic_name': f'/{robot_name}/odom', 'ros_type_name': 'nav_msgs/msg/Odometry', 'gz_type_name': 'gz.msgs.Odometry', 'direction': 'GZ_TO_ROS'},
-            {'ros_topic_name': f'/{robot_name}/scan', 'gz_topic_name': f'/{robot_name}/scan', 'ros_type_name': 'sensor_msgs/msg/LaserScan', 'gz_type_name': 'gz.msgs.LaserScan', 'direction': 'GZ_TO_ROS'},
-            {'ros_topic_name': f'/{robot_name}/camera/image_raw', 'gz_topic_name': f'/{robot_name}/camera/image_raw', 'ros_type_name': 'sensor_msgs/msg/Image', 'gz_type_name': 'gz.msgs.Image', 'direction': 'GZ_TO_ROS'},
-            {'ros_topic_name': f'/{robot_name}/camera/camera_info', 'gz_topic_name': f'/{robot_name}/camera/camera_info', 'ros_type_name': 'sensor_msgs/msg/CameraInfo', 'gz_type_name': 'gz.msgs.CameraInfo', 'direction': 'GZ_TO_ROS'},
-            {'ros_topic_name': f'/{robot_name}/joint_states', 'gz_topic_name': f'/{robot_name}/joint_states', 'ros_type_name': 'sensor_msgs/msg/JointState', 'gz_type_name': 'gz.msgs.Model', 'direction': 'GZ_TO_ROS'}
-        ])
-
-        # Generar URDF con el prefijo insertado
-        robot_desc_cmd = Command(['xacro ', urdf_file, ' prefix:=', prefix])
-
-        # Robot State Publisher
+        # Robot State Publisher (Carga el URDF con namespace)
+        xacro_file = os.path.join(pkg_proyecto_abp, 'urdf', ROBOT_XACRO)
         rsp_node = Node(
             package='robot_state_publisher',
             executable='robot_state_publisher',
-            name=f'robot_state_publisher_{robot_name}',
             namespace=robot_name,
-            parameters=[{'robot_description': robot_desc_cmd, 'use_sim_time': True}]
+            parameters=[{
+                'robot_description': Command(['xacro ', xacro_file, ' prefix:=', robot_name, '/']),
+                'use_sim_time': True,
+                'frame_prefix': f'{robot_name}/'
+            }]
         )
 
-        # Hacer aparecer al robot en Gazebo
+        # Aparecer el robot en Gazebo
         spawn_node = Node(
             package='ros_gz_sim',
             executable='create',
             arguments=[
                 '-name', robot_name,
-                '-string', robot_desc_cmd,
+                '-topic', f'/{robot_name}/robot_description',
                 '-x', '0.0',
-                '-y', str(y_pose),
-                '-z', '2'
+                '-y', str(y_pos),
+                '-z', '0.1'
             ],
             output='screen'
         )
 
+        # Transformación estática: map -> odom (Posicionamiento global)
         static_tf_node = Node(
             package='tf2_ros',
             executable='static_transform_publisher',
             name=f'static_tf_{robot_name}',
-            arguments=[
-                '--x', '0.0', '--y', str(y_pose), '--z', '0.0',
-                '--yaw', '0.0', '--pitch', '0.0', '--roll', '0.0', 
-                '--frame-id', 'map', '--child-frame-id', f'{robot_name}/odom'
-            ]
+            arguments=['0', str(y_pos), '0', '0', '0', '0', 'map', f'{robot_name}/odom']
         )
 
-        # Transformada adicional: odom -> base_footprint (necesaria para la jerarquía TF completa)
+        # Transformación estática: odom -> base_footprint (Para que RViz no de error de Status: Error)
         static_tf_odom_node = Node(
             package='tf2_ros',
             executable='static_transform_publisher',
             name=f'static_tf_odom_{robot_name}',
-            arguments=[
-                '--x', '0.0', '--y', '0.0', '--z', '0.0',
-                '--yaw', '0.0', '--pitch', '0.0', '--roll', '0.0', 
-                '--frame-id', f'{robot_name}/odom', '--child-frame-id', f'{robot_name}/base_footprint'
-            ]
+            arguments=['0', '0', '0', '0', '0', '0', f'{robot_name}/odom', f'{robot_name}/base_footprint']
         )
 
-        # -------------------------------------------------------------------------
-        # DEFINICIÓN DE LOS NODOS DE CONTROL
-        # Asumiendo que los ejecutables en setup.py se llaman igual que el archivo pero sin el .py
-        # -------------------------------------------------------------------------
-        fsm_node = Node(
-            package='proyecto_abp',
-            executable='finite_state_machine',
-            name=f'finite_state_machine_{robot_name}',
-            namespace=robot_name,
-            output='screen'
-        )
-
-        camera_node = Node(
-            package='proyecto_abp',
-            executable='camera_processor',
-            name=f'camera_processor_{robot_name}',
-            namespace=robot_name,
-            output='screen'
-        )
-
-        laser_node = Node(
-            package='proyecto_abp',
-            executable='laser_processor',
-            name=f'laser_processor_{robot_name}',
-            namespace=robot_name,
-            output='screen'
-        )
-
-        pd_node = Node(
-            package='proyecto_abp',
-            executable='pd_controller',
-            name=f'pd_controller_{robot_name}',
-            namespace=robot_name,
-            output='screen'
-        )
-
-        # -------------------------------------------------------------------------
-        # CADENA DE LANZAMIENTO SECUENCIAL (CASCADA)
-        # -------------------------------------------------------------------------
-        
-        # 1. Cuando Spawn arranca -> Lanza FSM
-        fsm_start = RegisterEventHandler(
-            OnProcessStart(
-                target_action=spawn_node,
-                on_start=[TimerAction(period=1.0, actions=[fsm_node])]
-            )
-        )
-
-        # 2. Cuando FSM arranca -> Lanza Cámara
-        camera_start = RegisterEventHandler(
-            OnProcessStart(
-                target_action=fsm_node,
-                on_start=[TimerAction(period=2.0, actions=[camera_node])]
-            )
-        )
-
-        # 3. Cuando Cámara arranca -> Lanza Láser
-        laser_start = RegisterEventHandler(
-            OnProcessStart(
-                target_action=camera_node,
-                on_start=[TimerAction(period=4.0, actions=[laser_node])]
-            )
-        )
-
-        # 4. Cuando Láser arranca -> Lanza Controlador PD
-        pd_start = RegisterEventHandler(
-            OnProcessStart(
-                target_action=laser_node,
-                on_start=[TimerAction(period=6.0, actions=[pd_node])]
-            )
-        )
-
-        nodes.extend([
-            rsp_node, spawn_node, static_tf_node, static_tf_odom_node,
-            fsm_start, camera_start, laser_start, pd_start
+        # Configuración del Bridge para este robot (Lidar, Cámara, Odometría, CMD_VEL)
+        bridge_config.extend([
+            {'ros_topic_name': f'/{robot_name}/scan', 'gz_topic_name': f'/world/default/model/{robot_name}/link/base_footprint/sensor/lidar_sensor/scan', 'ros_type': 'sensor_msgs/msg/LaserScan', 'gz_type': 'gz.msgs.LaserScan', 'direction': 'GZ_TO_ROS'},
+            {'ros_topic_name': f'/{robot_name}/cmd_vel', 'gz_topic_name': f'/model/{robot_name}/cmd_vel', 'ros_type': 'geometry_msgs/msg/Twist', 'gz_type': 'gz.msgs.Twist', 'direction': 'ROS_TO_GZ'},
+            {'ros_topic_name': f'/{robot_name}/odom', 'gz_topic_name': f'/model/{robot_name}/odometry', 'ros_type': 'nav_msgs/msg/Odometry', 'gz_type': 'gz.msgs.Odometry', 'direction': 'GZ_TO_ROS'},
+            {'ros_topic_name': f'/{robot_name}/tf', 'gz_topic_name': f'/model/{robot_name}/tf', 'ros_type': 'tf2_msgs/msg/TFMessage', 'gz_type': 'gz.msgs.Pose_V', 'direction': 'GZ_TO_ROS'}
         ])
 
-    # 5. Guardar archivo YAML temporal y cargar el Bridge
+        nodes.extend([rsp_node, spawn_node, static_tf_node, static_tf_odom_node])
+
+    # 4. Configurar el Bridge General
     bridge_yaml_path = os.path.join(tempfile.gettempdir(), 'multirobot_bridge.yaml')
     with open(bridge_yaml_path, 'w') as f:
         yaml.dump(bridge_config, f, default_flow_style=False)
@@ -204,16 +109,14 @@ def launch_setup(context, *args, **kwargs):
         output='screen'
     )
 
-    # 6. Lanzar RViz
+    # 5. Lanzar RViz
     rviz_config = os.path.join(pkg_proyecto_abp, 'rviz', 'config.rviz')
     rviz_node = Node(
         package='rviz2',
         executable='rviz2',
         arguments=['-d', rviz_config],
-        parameters=[{'use_sim_time': True}],
-        output='screen'
+        parameters=[{'use_sim_time': True}]
     )
 
     nodes.extend([bridge_node, rviz_node])
-
     return nodes
