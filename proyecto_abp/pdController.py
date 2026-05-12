@@ -8,8 +8,8 @@ from proyecto_abp.finiteStateMachine import STATES, TRANSITIONS, TRANSITION_TOPI
 
 
 VELOCITY_TOPIC = '/cmd_vel'  # Topic para publicar comandos de velocidad
-VCONS = 0.5
-EPSILON = 5 # visual error in piels admited
+VCONS = 0.25
+EPSILON = 25 # visual error in pixels admited
 MIN_VISUAL_TRACK_ITER = 5 # iterations of the visual controller to consider it successful and switch to laser based control
 class PDControllerParams():
 
@@ -46,6 +46,8 @@ class PDController(Node):
         self.previous_laser_error = 0.0
         self.controller_consecutive_actions_sent = 0 # detectar si ha conseguido minimizar el error visual
         self.fsm_st = STATES[0] # estado inicial de la FSM
+        self.transition_hallway_sent = False  # Flag para evitar publicar múltiples transiciones
+        self.transition_hallway_counter = 0  # Contador para hacer transición más robusta
 
         self.robot_id = self.get_namespace()
         if self.robot_id == '/':
@@ -80,11 +82,12 @@ class PDController(Node):
     def laser_error_callback(self, msg):
         """Callback para el error del láser."""
         self.laser_error = msg.data
-        if self.visual_controller_success:
-            # reset error as we switch heuristic in the PD laser controller
+        # Solo resetear cuando ya estamos en el estado APPROACH_DOOR (transición completada)
+        if self.visual_controller_success and self.fsm_st == STATES[1]:
             self.laser_error = 0.0 
             self.previous_laser_error = 0.0
             self.visual_controller_success = False
+            self.transition_hallway_sent = False  # Reset para próxima transición
 
 
     def hallway_callback(self, msg):
@@ -109,41 +112,46 @@ class PDController(Node):
         cmd = Twist()
         cmd.linear.x = VCONS  # Usar la velocidad lineal del láser para evitar obstáculos
         control_law = 0.0
-        # flag para detectar que el controlador visual llevo al robot por la puerta
-        self.visual_controller_success = self.controller_consecutive_actions_sent > MIN_VISUAL_TRACK_ITER and abs(self.previous_visual_error) <= EPSILON and self.hallway_detected
 
-        if self.visual_controller_success:
-            self.transition_publisher.publish(String(data=TRANSITIONS[0])) # cambio de estado
-            
-        # Estado de wander & search: usar ley de control del Laser
+        # === MÁQUINA DE ESTADOS PARA TRANSICIÓN VISUAL → LASER ===
         if self.fsm_st == STATES[0]: # WANDER
             if not self.hallway_detected: # Searching hallway
                 # Controlador proporcional de velocidad lineal
-                cmd.linear.x = VCONS * self.laserPD_gains[0].getKp() # controlador porporcional de velocidad lineal
+                cmd.linear.x = VCONS * self.laserPD_gains[0].getKp()
                 # Controlador PD para steering
                 control_law = (self.laserPD_gains[1].getKp() * self.laser_error) + (self.laserPD_gains[1].getKd() * (self.laser_error - self.previous_laser_error) * FREQUENCY)
                 self.get_logger().info('Buscando pasillo...')
                 self.controller_consecutive_actions_sent = 0
+                self.transition_hallway_sent = False  # Reset para próxima detección
+                self.transition_hallway_counter = 0
 
-            else: # Approach hallway
+            else: # Approach hallway with visual controller
                 # Calcular el error y la derivada del error
                 derivative = (self.visual_error - self.previous_visual_error) * FREQUENCY
                 # Calcular la señal de control PD
                 control_law = (self.visualPD_gains.getKp() * self.visual_error) + (self.visualPD_gains.getKd() * derivative)
-                self.get_logger().info('Aproximando puerta con Visual based PD Controller...')
-                self.controller_consecutive_actions_sent += 1
+                self.get_logger().info(f'Aproximando puerta (Visual) - Error: {self.visual_error:.2f}px')
+                
+                # DETECCIÓN ROBUSTA DE TRANSICIÓN: contador para evitar ruido
+                if abs(self.visual_error) <= EPSILON and self.hallway_detected:
+                    self.transition_hallway_counter += 1
+                    if self.transition_hallway_counter >= 3:  # Requiere 3 iteraciones consecutivas (150ms @ 20Hz)
+                        self.visual_controller_success = True
+                        self.transition_hallway_counter = 0
+                else:
+                    self.transition_hallway_counter = 0
 
-        elif self.fsm_st == STATES[1]: # Aprox puerta
+        elif self.fsm_st == STATES[1]: # APPROACH_DOOR
             # Controlador proporcional de velocidad lineal
-            cmd.linear.x = VCONS * self.laserPD_gains[0].getKp() # controlador porporcional de velocidad lineal
+            cmd.linear.x = VCONS * self.laserPD_gains[0].getKp()
             # Controlador PD para steering
             control_law = (self.laserPD_gains[1].getKp() * self.laser_error) + (self.laserPD_gains[1].getKd() * (self.laser_error - self.previous_laser_error) * FREQUENCY)
-            self.get_logger().info('Aproximando puerta con Laser based PD Controller...')
+            self.get_logger().info(f'Aproximando puerta (Laser) - Error: {self.laser_error:.4f}')
         
         # Estado navegacion por el pasillo -> PD laser based control con nuevas ganancias y umbrales
         elif self.fsm_st == STATES[2]: # NAVIGATING_HALLWAY
             # Controlador proporcional de velocidad lineal
-            cmd.linear.x = VCONS * self.laserPD_gains[0].getKp() # controlador porporcional de velocidad lineal
+            cmd.linear.x = VCONS * self.laserPD_gains[0].getKp()
             self.laserPD_gains[1].setKp(1.2) # increase gain as quick turns are required
             self.laserPD_gains[1].setKd(0.19)
             # Controlador PD para steering
@@ -160,12 +168,14 @@ class PDController(Node):
             if abs(self.visual_error) <= EPSILON:
                 self.transition_publisher.publish(String(data=TRANSITIONS[2])) # cambio de estado a target approach
 
+        # === PUBLICAR TRANSICIÓN (UNA SOLA VEZ) ===
+        if self.visual_controller_success and not self.transition_hallway_sent:
+            self.transition_publisher.publish(String(data=TRANSITIONS[0]))  # HALLWAY_FOUND
+            self.transition_hallway_sent = True
+            self.get_logger().info('✓ Transición publicada: HALLWAY_FOUND')
+            
         # Asignar steering
         cmd.angular.z = -control_law
-
-       
-
-        #self.get_logger().info(f"VLineal: {cmd.linear.x:.2f}, Angular: {cmd.angular.z:.2f}, Error Visual: {self.visual_error:.2f}, Error Laser: {self.laser_error:.2f}, Obstacle?: {self.there_is_obstacle}")
 
         self.cmd_vel_publisher.publish(cmd)
         # actualizar error de los sensores

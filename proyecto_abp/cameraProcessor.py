@@ -351,8 +351,8 @@ class CameraProcessor(Node):
         self.goal_reached_publisher_ = self.create_publisher(Bool, self.robot_id + '/goal_reached', 10)
         
         
-        # CREAMOS UN TIMER PARA LA INTERFAZ GRÁFICA Y PUBLICACIÓN (~30 FPS)
-        timer_period = 0.033  # segundos (1/30)
+        # CREAMOS UN TIMER PARA LA INTERFAZ GRÁFICA Y PUBLICACIÓN
+        timer_period = 1.0 / FREQUENCY  # segundos
         self.display_timer = self.create_timer(timer_period, self.display_callback)
 
         if self.dynamic_camera_feed:
