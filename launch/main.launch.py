@@ -10,7 +10,7 @@ from launch.event_handlers import OnProcessStart
 from launch_ros.actions import Node
 
 ROBOT_XACRO = 'my_robot.xacro'
-MAPA_WORLD_FILE = 'laberinto_v1_world.sdf'
+MAPA_WORLD_FILE = 'laberinto_v2_world.sdf'
 def generate_launch_description():
     return LaunchDescription([
         # Parámetro para elegir num de robots

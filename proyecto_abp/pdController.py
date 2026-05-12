@@ -9,8 +9,8 @@ from proyecto_abp.finiteStateMachine import STATES, TRANSITIONS, TRANSITION_TOPI
 
 VELOCITY_TOPIC = '/cmd_vel'  # Topic para publicar comandos de velocidad
 VCONS = 0.25
-EPSILON = 5 # visual error in piels admited
-MIN_VISUAL_TRACK_ITER = 40 # iterations of the visual controller to consider it successful and switch to laser based control
+EPSILON = 2 # visual error in piels admited
+MIN_VISUAL_TRACK_ITER = 15 # iterations of the visual controller to consider it successful and switch to laser based control
 class PDControllerParams():
 
     def __init__(self, kp, kd, sensor_type, is_steering):
