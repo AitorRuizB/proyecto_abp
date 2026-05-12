@@ -129,7 +129,7 @@ def launch_setup(context, *args, **kwargs):
             executable='finite_state_machine',
             name=f'finite_state_machine_{robot_name}',
             namespace=robot_name,
-            parameters=[{'goal': goal, 'num_robots': num_robots}],
+            parameters=[{'goal': goal,}],
             output='screen'
         )
         # Nodo gestor de alfombras (solo para robot_0 según tu petición)
