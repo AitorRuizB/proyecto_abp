@@ -61,16 +61,16 @@ class MultiCarpetManager(Node):
             # Formato: name: "<model_name>/link/visual", material: { diffuse: { r, g, b, a } }
             
             visual_data = f'''
-name: "{model_name}/link/visual"
-material {{
-  diffuse {{
-    r: {r}
-    g: {g}
-    b: {b}
-    a: 1.0
-  }}
-}}
-'''
+                        name: "{model_name}/link/visual"
+                        material {{
+                        diffuse {{
+                            r: {r}
+                            g: {g}
+                            b: {b}
+                            a: 1.0
+                        }}
+                        }}
+                        '''
             
             command = [
                 'gz', 'service',
