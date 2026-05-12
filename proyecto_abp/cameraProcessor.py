@@ -2,7 +2,7 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 from std_msgs.msg import Float32, Bool, String
-from proyecto_abp.finiteStateMachine import STATE_TOPIC, STATES, TRANSITION_TOPIC, TRANSITIONS, FREQUENCY
+from proyecto_abp.finiteStateMachine import STATE_TOPIC, STATES, TRANSITION_TOPIC, TRANSITIONS,GOAL_TOPIC, POSSIBLE_GOALS, FREQUENCY 
 import cv_bridge
 import cv2
 import numpy as np
@@ -10,7 +10,6 @@ import numpy as np
 CAMERA_TOPIC = '/camera/image_raw'  # Topic por defecto para la cámara (puede ser modificado dinámicamente)
 ERROR_TOPIC = '/visual_error' # float con componente X del centro de masas de la puerta detectada
 HALLWAY_TOPIC = '/hallway' # bool indicando si se ha detectado puerta y trampilla (True) o no (False)
-GOAL_TOPIC = '/goal' # String indicando el objetivo a buscar
 SHOW_CAMERA_FEED = False # for debug purposes
 class Recon:
     """
@@ -32,6 +31,7 @@ class Recon:
         self.trampilla_detectada = False # flag para activar transicion de estado
         self.error = None
         self.goal = None # direccion objetivo en grados para el controlador basado en laser
+        self.goal_identified = False # flag indicando si el objetivo ha sido identificado
 
         # Umbrales configurables para la geometría de la puerta
         self.umbral_y_diff = 80        # Diferencia máxima en Y para considerar que son las dos columnas de la puerta
@@ -45,6 +45,9 @@ class Recon:
 
     def get_hallway_status(self):
         return self.there_is_hallway
+    
+    def get_goal_identified(self):
+        return self.goal_identified
     
     def is_already_in_hallway(self):
         return not (self.trampilla_detectada or self.there_is_hallway)
@@ -233,21 +236,27 @@ class Recon:
 
         return output_img
 
-    def detect_obstacle(self):
-        """Lógica de procesamiento para detectar obstáculos y devolver imagen con anotaciones."""
-        mask = self.detect_color("orange")
+    def detect_target(self, goal: str):
+        """Lógica de procesamiento para detectar objetivos y devolver imagen con anotaciones."""
+        if goal not in POSSIBLE_GOALS:
+            self.goal_identified = False
+            self.error = None
+            return self.frame.copy() if self.frame is not None else None
+        
+        mask = self.detect_color(goal)
         if self.frame is None:
-            self.goal = 0.0
+            self.goal_identified = False
+            self.error = None
             return None
 
         output_img = self.frame.copy()
-        alpha = 0.0
+        self.goal_identified = False
 
         if mask is None or np.all(mask == 0):
-            self.goal = 0.0
+            self.error = None
             return output_img
 
-        # Detectar contornos de los obstaculos naranjas
+        # Detectar contornos del objetivo
         contornos, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         
         # Filtrar contornos por área para eliminar ruido
@@ -255,42 +264,38 @@ class Recon:
         cv2.drawContours(output_img, contornos_validos, -1, (255, 100, 0), 2)
                 
         if len(contornos_validos) > 0:
-            # Ordenar por mayor superficie para obtener el obstáculo más cercano
-            obstacle = max(contornos_validos, key=cv2.contourArea)
+            # Ordenar por mayor superficie para obtener el objetivo más cercano
+            target = max(contornos_validos, key=cv2.contourArea)
             
             img_width = self.frame.shape[1]
-            img_center_x = img_width / 2
 
-            # Hallar bordes del obstáculo (bounding box) y dibujarlo en verde
-            x, y, w, h = cv2.boundingRect(obstacle)
+            # Hallar bordes del objetivo (bounding box) y dibujarlo en verde
+            x, y, w, h = cv2.boundingRect(target)
             cv2.rectangle(output_img, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
-            # Dibujar el centroide del obstáculo en rojo
-            M = cv2.moments(obstacle)
+            # Dibujar el centroide del objetivo en rojo
+            M = cv2.moments(target)
             if M["m00"] != 0:
                 cx = int(M["m10"] / M["m00"])
                 cy = int(M["m01"] / M["m00"])
                 cv2.circle(output_img, (cx, cy), 7, (0, 0, 255), -1)
-
-            left_edge_x = x
-            right_edge_x = x + w
-
-            # Calcular el espacio libre a cada lado
-            space_left = left_edge_x
-            space_right = img_width - right_edge_x
-
-            # Decidir la dirección de evasión (lado con más espacio) y calcular el punto objetivo
-            target_x = (space_left / 2) if space_left > space_right else (right_edge_x + space_right / 2)
-            cv2.circle(output_img, (int(target_x), int(self.frame.shape[0] / 2)), 10, (0, 255, 0), -1)
-
-            # Alpha es el error en píxeles desde el centro de la imagen al punto objetivo
-            alpha = target_x - img_center_x
+                
+                # Calcular error en componente X (diferencia con el centro de la imagen)
+                self.error = float(cx - img_width / 2)
+                self.goal_identified = True
+            else:
+                self.error = None
+        else:
+            self.error = None
             
-        #print(f"Obstáculos detectados: {len(contornos_validos)} - Goal calculado: {self.goal:.2f} grados")
+        #print(f"Objetivos detectados: {len(contornos_validos)} - Goal identificado: {self.goal_identified}")
         # Añadir texto informativo a la imagen
         font = cv2.FONT_HERSHEY_SIMPLEX
-        cv2.putText(output_img, f'Goal: {self.goal:.2f} deg', (10, 30), font, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
-        cv2.putText(output_img, f'Alpha: {alpha:.2f} px', (10, 60), font, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
+        if self.goal_identified:
+            cv2.putText(output_img, f'Target Identified: {goal}', (10, 30), font, 0.7, (0, 255, 0), 2, cv2.LINE_AA)
+            cv2.putText(output_img, f'Error X: {self.error:.2f} px', (10, 60), font, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
+        else:
+            cv2.putText(output_img, f'Searching for: {goal}', (10, 30), font, 0.7, (0, 0, 255), 2, cv2.LINE_AA)
 
         return output_img
 
@@ -317,6 +322,7 @@ class CameraProcessor(Node):
         self.result = None
         self.dynamic_camera_feed = SHOW_CAMERA_FEED
         self.fsm_st = None
+        self.current_goal = None
 
 
         # Empleamos el setter en el constructor con el topic por defecto
@@ -331,6 +337,10 @@ class CameraProcessor(Node):
         self.fsm_st = STATES[0]  # Inicializar con estado por defecto (WANDER)
         self.create_subscription(String, self.robot_id + STATE_TOPIC, self.fsm_callback, 10)
         self.get_logger().info(f'Suscrito a FSM state: {self.robot_id + STATE_TOPIC}')
+        
+        # subscriptor al goal
+        self.create_subscription(String, self.robot_id + GOAL_TOPIC, self.goal_callback, 10)
+        self.get_logger().info(f'Suscrito a goal topic: {self.robot_id + GOAL_TOPIC}')
 
 
         # publishers para los topics de error y hallway
@@ -338,6 +348,7 @@ class CameraProcessor(Node):
         self.hallway_publisher_ = self.create_publisher(Bool, self.robot_id + HALLWAY_TOPIC, 10)
         self.fsm_transition_publisher_ = self.create_publisher(String, self.robot_id + TRANSITION_TOPIC, 10)
         self.processed_image_publisher_ = self.create_publisher(Image, self.robot_id + '/processed_image', 10)
+        self.goal_reached_publisher_ = self.create_publisher(Bool, self.robot_id + '/goal_reached', 10)
         
         
         # CREAMOS UN TIMER PARA LA INTERFAZ GRÁFICA Y PUBLICACIÓN (~30 FPS)
@@ -355,6 +366,11 @@ class CameraProcessor(Node):
         """Callback para recibir el estado actual de la FSM."""
         if msg is not None and msg.data in STATES:
             self.fsm_st = msg.data
+    
+    def goal_callback(self, msg: String):
+        """Callback para recibir el objetivo actual."""
+        if msg is not None:
+            self.current_goal = msg.data
    
     def setCameraTopic(self, topic: str):
         """
@@ -390,7 +406,13 @@ class CameraProcessor(Node):
             if self.fsm_st in [STATES[0], STATES[1]]:  # WANDER, APPROACH_DOOR
                 purple_mask = self.recon.detect_color("purple")
                 self.result = self.recon.detect_hallway_entrance(purple_mask)
-
+            
+            elif self.fsm_st == STATES[2]:  # NAVIGATING_HALLWAY
+                if self.current_goal is not None:
+                    self.result = self.recon.detect_target(self.current_goal)
+                else:
+                    self.result = cv_image
+            
             else:
                 # Para otros estados o si es None, simplemente mostramos la imagen cruda
                 self.result = cv_image
@@ -399,9 +421,11 @@ class CameraProcessor(Node):
             error_msg = Float32()
             hallway_msg = Bool()
             trans_msg = String()
+            goal_reached_msg = Bool()
 
             error_msg.data = self.recon.get_error() if self.recon.get_error() is not None else 0.0
             hallway_msg.data = self.recon.get_hallway_status()
+            goal_reached_msg.data = self.recon.get_goal_identified()
             
             
             # Lanzar transiciones si se dan las condiciones 
@@ -412,6 +436,7 @@ class CameraProcessor(Node):
             # Publisher de realimentacion para el controlador PD (frecuencia de imagen)
             self.error_publisher_.publish(error_msg)
             self.hallway_publisher_.publish(hallway_msg)
+            self.goal_reached_publisher_.publish(goal_reached_msg)
             
 
         except Exception as e:

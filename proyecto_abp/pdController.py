@@ -10,7 +10,7 @@ from proyecto_abp.finiteStateMachine import STATES, TRANSITIONS, TRANSITION_TOPI
 VELOCITY_TOPIC = '/cmd_vel'  # Topic para publicar comandos de velocidad
 VCONS = 0.25
 EPSILON = 5 # visual error in piels admited
-MIN_VIUSAL_TRACK_ITER = 40 # iterations of the visual controller to consider it successful and switch to laser based control
+MIN_VISUAL_TRACK_ITER = 40 # iterations of the visual controller to consider it successful and switch to laser based control
 class PDControllerParams():
 
     def __init__(self, kp, kd, sensor_type, is_steering):
@@ -110,7 +110,7 @@ class PDController(Node):
         cmd.linear.x = VCONS  # Usar la velocidad lineal del láser para evitar obstáculos
         control_law = 0.0
         # flag para detectar que el controlador visual llevo al robot por la puerta
-        self.visual_controller_success = self.controller_consecutive_actions_sent > MIN_VIUSAL_TRACK_ITER and abs(self.previous_visual_error) <= EPSILON and self.hallway_detected
+        self.visual_controller_success = self.controller_consecutive_actions_sent > MIN_VISUAL_TRACK_ITER and abs(self.previous_visual_error) <= EPSILON and self.hallway_detected
 
         if self.visual_controller_success:
             self.transition_publisher.publish(String(data=TRANSITIONS[0])) # cambio de estado
@@ -149,6 +149,16 @@ class PDController(Node):
             # Controlador PD para steering
             control_law = (self.laserPD_gains[1].getKp() * self.laser_error) + (self.laserPD_gains[1].getKd() * (self.laser_error - self.previous_laser_error) * FREQUENCY)
             self.get_logger().info('Navegando pasillo...')
+
+        elif self.fsm_st == STATES[3]: # Approach target
+            # Calcular el error y la derivada del error
+            derivative = (self.visual_error - self.previous_visual_error) * FREQUENCY
+            # Calcular la señal de control PD
+            control_law = (self.visualPD_gains.getKp() * self.visual_error) + (self.visualPD_gains.getKd() * derivative)
+            cmd.linear.x = VCONS*0.5 # reducir velocidad para aproximación al objetivo
+            self.get_logger().info('Aproximando objetivo con Visual based PD Controller...')
+            if abs(self.visual_error) <= EPSILON:
+                self.transition_publisher.publish(String(data=TRANSITIONS[2])) # cambio de estado a target approach
 
         # Asignar steering
         cmd.angular.z = -control_law
