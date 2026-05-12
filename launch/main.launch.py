@@ -10,7 +10,7 @@ from launch.event_handlers import OnProcessStart
 from launch_ros.actions import Node
 
 ROBOT_XACRO = 'my_robot.xacro'
-
+MAPA_WORLD_FILE = 'laberinto_v1_world.sdf'
 def generate_launch_description():
     return LaunchDescription([
         # Parámetro para elegir num de robots
@@ -27,7 +27,7 @@ def launch_setup(context, *args, **kwargs):
     pkg_ros_gz_sim = get_package_share_directory('ros_gz_sim')
 
     # 2. Iniciar Gazebo
-    world_file = os.path.join(pkg_proyecto_abp, 'world', 'laberinto_v1_world.sdf') 
+    world_file = os.path.join(pkg_proyecto_abp, 'world', MAPA_WORLD_FILE) 
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(pkg_ros_gz_sim, 'launch', 'gz_sim.launch.py')

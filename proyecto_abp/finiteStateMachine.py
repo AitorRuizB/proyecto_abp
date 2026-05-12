@@ -5,9 +5,11 @@ from std_msgs.msg import String
 
 FREQUENCY = 50.0  # Frecuencia de control del MRS en Hz
 
+POSSIBLE_GOALS = ['green', 'yellow', 'red', 'blue']
 STATES = ['WANDER', 'APPROACH_DOOR','NAVIGATING_HALLWAY', 'MERGE_SLAM', 'NAV2TARGET']
 TRANSITIONS = ['HALLWAY_FOUND', 'DOOR_PASSED','TARGET_FOUND', 'GLOBAL_MAP_READY']
 
+GOAL_TOPIC = '/goal' # String indicando el objetivo a buscar
 TRANSITION_TOPIC = '/transition'  # Topic para publicar transiciones de estado
 STATE_TOPIC = '/state'  # Topic para publicar estados del robot
 
@@ -24,6 +26,7 @@ class FiniteStateMachine(Node):
 
         # subcribe to transitions topics to update the state
         self.create_subscription(String, self.robot_id + TRANSITION_TOPIC, self.transition_callback, 10)
+        self.goal_publisher = self.create_publisher(String, self.robot_id + GOAL_TOPIC, 10)
 
         # Create a timer to periodically publish the state at 12Hz
         self.create_timer(1.0 / FREQUENCY, self.periodic_publish)

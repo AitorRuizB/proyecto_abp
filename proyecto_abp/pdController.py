@@ -10,7 +10,7 @@ from proyecto_abp.finiteStateMachine import STATES, TRANSITIONS, TRANSITION_TOPI
 VELOCITY_TOPIC = '/cmd_vel'  # Topic para publicar comandos de velocidad
 VCONS = 0.25
 EPSILON = 5 # visual error in piels admited
-MIN_VIUSAL_TRACK_ITER = 20 # iterations of the visual controller to consider it successful and switch to laser based control
+MIN_VIUSAL_TRACK_ITER = 40 # iterations of the visual controller to consider it successful and switch to laser based control
 class PDControllerParams():
 
     def __init__(self, kp, kd, sensor_type, is_steering):
@@ -138,7 +138,7 @@ class PDController(Node):
             cmd.linear.x = VCONS * self.laserPD_gains[0].getKp() # controlador porporcional de velocidad lineal
             # Controlador PD para steering
             control_law = (self.laserPD_gains[1].getKp() * self.laser_error) + (self.laserPD_gains[1].getKd() * (self.laser_error - self.previous_laser_error) * FREQUENCY)
-            #self.get_logger().info('Aproximando puerta con Laser based PD Controller...')
+            self.get_logger().info('Aproximando puerta con Laser based PD Controller...')
         
         # Estado navegacion por el pasillo -> PD laser based control con nuevas ganancias y umbrales
         elif self.fsm_st == STATES[2]: # NAVIGATING_HALLWAY
@@ -148,7 +148,7 @@ class PDController(Node):
             self.laserPD_gains[1].setKd(0.19)
             # Controlador PD para steering
             control_law = (self.laserPD_gains[1].getKp() * self.laser_error) + (self.laserPD_gains[1].getKd() * (self.laser_error - self.previous_laser_error) * FREQUENCY)
-            #self.get_logger().info('Navegando pasillo...')
+            self.get_logger().info('Navegando pasillo...')
 
         # Asignar steering
         cmd.angular.z = -control_law

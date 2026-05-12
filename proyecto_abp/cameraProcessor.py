@@ -10,9 +10,8 @@ import numpy as np
 CAMERA_TOPIC = '/camera/image_raw'  # Topic por defecto para la cámara (puede ser modificado dinámicamente)
 ERROR_TOPIC = '/visual_error' # float con componente X del centro de masas de la puerta detectada
 HALLWAY_TOPIC = '/hallway' # bool indicando si se ha detectado puerta y trampilla (True) o no (False)
-GOAL_TOPIC = '/goal' # float indicando idreccion pbjetivo para el controlador
+GOAL_TOPIC = '/goal' # String indicando el objetivo a buscar
 SHOW_CAMERA_FEED = False # for debug purposes
-MAX_ANGLE = 2.5 # angulo de desviacion para mapear goal al controlador basado en Laser
 class Recon:
     """
     ## Clase a bajo nivel ##
@@ -22,7 +21,11 @@ class Recon:
         # Rango de color morado en HSV
         self.color = {
             "purple": {"lower": np.array([125, 50, 50]), "upper": np.array([155, 255, 255])},
-            "orange": {"lower": np.array([0, 100, 40]), "upper": np.array([25, 255, 255])}
+            "orange": {"lower": np.array([0, 100, 40]), "upper": np.array([25, 255, 255])},
+            "green": {"lower": np.array([40, 50, 50]), "upper": np.array([80, 255, 255])},
+            "yellow": {"lower": np.array([20, 100, 100]), "upper": np.array([30, 255, 255])},
+            "red": {"lower": np.array([0, 150, 50]), "upper": np.array([10, 255, 255])},
+            "blue": {"lower": np.array([90, 50, 50]), "upper": np.array([130, 255, 255])}
         }
         self.frame = None
         self.there_is_hallway = False
@@ -55,7 +58,7 @@ class Recon:
         # Reducir la imagen a la mitad para aligerar el procesamiento
         self.frame = cv2.resize(frame, (0, 0), fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA)
 
-    def detect_color(self, color_name="purple"):
+    def detect_color(self, color_name):
         """Aplica los filtros de OpenCV y devuelve la máscara segmentada."""
         if self.frame is None:
             return None
@@ -283,13 +286,6 @@ class Recon:
             # Alpha es el error en píxeles desde el centro de la imagen al punto objetivo
             alpha = target_x - img_center_x
             
-            # Convertir el error en píxeles a un ángulo de dirección (goal)
-            # Se mapea el error máximo (media imagen) a un ángulo máximo
-            k_alpha = MAX_ANGLE / img_center_x 
-            self.goal = float(k_alpha * alpha)
-        else:
-            # Si no hay obstáculos, el objetivo es ir recto (0 grados)
-            self.goal = 0.0
         #print(f"Obstáculos detectados: {len(contornos_validos)} - Goal calculado: {self.goal:.2f} grados")
         # Añadir texto informativo a la imagen
         font = cv2.FONT_HERSHEY_SIMPLEX
@@ -321,8 +317,7 @@ class CameraProcessor(Node):
         self.result = None
         self.dynamic_camera_feed = SHOW_CAMERA_FEED
         self.fsm_st = None
-        # Variable para almacenar el último valor de goal calculado
-        self.last_goal_value = 0.0
+
 
         # Empleamos el setter en el constructor con el topic por defecto
         # Intentar suscribirse con reintentos
@@ -342,12 +337,8 @@ class CameraProcessor(Node):
         self.error_publisher_ = self.create_publisher(Float32, self.robot_id + ERROR_TOPIC, 10)
         self.hallway_publisher_ = self.create_publisher(Bool, self.robot_id + HALLWAY_TOPIC, 10)
         self.fsm_transition_publisher_ = self.create_publisher(String, self.robot_id + TRANSITION_TOPIC, 10)
-        self.goal_publisher_ = self.create_publisher(Float32, self.robot_id + GOAL_TOPIC, 10)
         self.processed_image_publisher_ = self.create_publisher(Image, self.robot_id + '/processed_image', 10)
         
-        # Timer para publicar el goal a baja frecuencia (1 Hz)
-        goal_timer_period = 1.0  # segundos (1 Hz)
-        self.goal_timer = self.create_timer(goal_timer_period, self.goal_publish_callback)
         
         # CREAMOS UN TIMER PARA LA INTERFAZ GRÁFICA Y PUBLICACIÓN (~30 FPS)
         timer_period = 0.033  # segundos (1/30)
@@ -399,8 +390,7 @@ class CameraProcessor(Node):
             if self.fsm_st in [STATES[0], STATES[1]]:  # WANDER, APPROACH_DOOR
                 purple_mask = self.recon.detect_color("purple")
                 self.result = self.recon.detect_hallway_entrance(purple_mask)
-            elif self.fsm_st == STATES[2]:  # NAVIGATING_HALLWAY
-                self.result = self.recon.detect_obstacle()
+
             else:
                 # Para otros estados o si es None, simplemente mostramos la imagen cruda
                 self.result = cv_image
@@ -413,9 +403,6 @@ class CameraProcessor(Node):
             error_msg.data = self.recon.get_error() if self.recon.get_error() is not None else 0.0
             hallway_msg.data = self.recon.get_hallway_status()
             
-            # Almacenar el goal para publicarlo a baja frecuencia
-            if self.fsm_st == STATES[2]:  # NAVIGATING_HALLWAY
-                self.last_goal_value = self.recon.get_goal()
             
             # Lanzar transiciones si se dan las condiciones 
             if self.fsm_st == STATES[1] and self.recon.is_already_in_hallway(): # Envia transicion de estado a la FSM
