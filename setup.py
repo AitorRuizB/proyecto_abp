@@ -40,6 +40,7 @@ setup(
             'carpet_manager = proyecto_abp.carpet_color_manager:main',
             'launch_nav2_after_slam = proyecto_abp.launch_nav2_after_slam:main',
             'teleop = proyecto_abp.teleop:main',
+            'start_nav = proyecto_abp.start_nav:main'
         ],
     },
 )
