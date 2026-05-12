@@ -8,7 +8,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 
 RVIZ_FILE = 'robot_0.rviz'
-GZ_WORLD_FILE = 'laberinto_world.sdf'
+GZ_WORLD_FILE = 'laberinto_v1_world.sdf'
 
 def launch_setup(context, *args, **kwargs):
     num_robots = int(LaunchConfiguration('num_robots').perform(context))

@@ -5,6 +5,7 @@ from std_msgs.msg import Float32, Bool, String
 import numpy as np
 import matplotlib.pyplot as plt
 from proyecto_abp.finiteStateMachine import STATE_TOPIC, STATES
+from proyecto_abp.cameraProcessor import GOAL_TOPIC
 
 
 SCAN_TOPIC = '/scan'  # Topic del laser
@@ -71,28 +72,32 @@ class Vfh:
     def set_status(self, status):
         self.status = status 
     
+    def set_goal(self, goal):
+        self.goal_direction = goal
+
     def process_laser_data(self):
         if self.laser_data is None or self.total_points == 0:
             return
 
         N = self.total_points # N puntos detectados
 
-        # 1. Generar array continuo asumiendo el barrido real del sensor.
-        # El sensor empieza en +90º (Izquierda), pasa por 0º (Frente),
-        # luego -90º (Derecha) y sigue hasta completar los 360º (-270º).
-        angles = np.linspace(np.pi/2, -3 * np.pi/2, N, endpoint=False)
-
+        # 1. Generar array continuo. El barrido real del sensor es antihorario,
+        # empezando desde la parte trasera (-180º), pasando por derecha (-90º), 
+        # frente (0º) y terminando en la izquierda (+90º).
+        angles = np.linspace(-np.pi, np.pi, N, endpoint=False)
+        
         # 2. Normalizar los ángulos al rango [-pi, pi] usando la operación módulo.
-        # Esto automáticamente convierte el tramo que baja de -180º a -270º 
-        # en sus correspondientes positivos de +180º bajando a +90º.
         angles = (angles + np.pi) % (2 * np.pi) - np.pi
-
+        #print(f"Distance data (m): {self.laser_data} at angles (rad): {angles}")
         ranges = self.laser_data
 
-        # 3. Ordenar puntos por ángulo de -pi a pi
+        # 4. Ordenar puntos por ángulo de -pi/2 a pi/2
         sort_indices = np.argsort(angles, kind='mergesort')
         sorted_angles = angles[sort_indices]
         sorted_ranges = ranges[sort_indices]
+
+        # Intercambiar el orden de los ranges para que correspondan al orden de los ángulos
+        sorted_ranges = sorted_ranges[::-1]
 
         # Actualizamos la variable de la clase. Cada fila es [ángulo, distancia]
         self.laser_points = np.column_stack((sorted_angles, sorted_ranges))
@@ -143,7 +148,7 @@ class Vfh:
         # Heurística para encontrar la dirección más segura
         if not self.there_is_obstacle and self.status == STATES[0]:
             # Seleccionar en una vecindad self.neighbourhood_size el valor mediano con la probabilidad más baja
-            print("Calcula heuristica direccion")
+            #print("Calcula heuristica direccion")
 
             # 1. Definir el tamaño de la ventana de análisis en número de puntos del láser
             angle_increment_rad = (2 * np.pi) / self.total_points if self.total_points > 0 else 0.1
@@ -171,7 +176,6 @@ class Vfh:
                 # Si no se pudo calcular, ir recto por defecto
                 self.goal_direction = 0.0
         else:
-            #print("Direccion RECTO")
             # Si hay un obstáculo cercano, el objetivo por defeto es ir recto para sortearlo
             self.goal_direction = 0.0
 
@@ -198,8 +202,7 @@ class Vfh:
 
         # comprobar si hay puntos bajo del umbral para detectar obstáculos dentro de la vecindad
         self.there_is_obstacle = bool(np.any((self.laser_points[:,1] < self.obstacle_threshold) & (np.abs(self.laser_points[:,0] - self.goal_direction) < np.radians(self.neighbourhood_size))))
-        if self.there_is_obstacle:
-            print("Hay un obstaculo")
+
         # inicializar la direccion seleccionada al objetivo
         selected_direction = self.goal_direction
         # Calcular función de costo basada en probabilidad de ocupacion 
@@ -273,6 +276,7 @@ class LaserProcessor(Node):
         )
         # subscribe to fsm node
         self.fsm_st = self.create_subscription(String, self.robot_id + STATE_TOPIC, self.fsm_callback, 10)
+        self.goal_subscriber = self.create_subscription(Float32, self.robot_id + GOAL_TOPIC, self.goal_callback, 10)
 
         # publisher
         self.laser_error_publisher = self.create_publisher(Float32, self.robot_id + ERROR_TOPIC, 10)
@@ -282,6 +286,9 @@ class LaserProcessor(Node):
         
         self.get_logger().info(f'Laser processor initialized for {self.robot_id}')
 
+    def goal_callback(self, msg):
+        if self.vfh.status == STATES[2]: # Si estamos en el estado de navegar pasillos se puede actualizar el objetivo dinámicamente desde el nodo de navegación
+            self.vfh.set_goal(msg.data)
 
     def fsm_callback(self, msg):
         if msg.data in STATES:
