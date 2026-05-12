@@ -36,7 +36,7 @@ setup(
             'finite_state_machine = proyecto_abp.finiteStateMachine:main',
             'pd_controller = proyecto_abp.pdController:main',
             'start_slam = proyecto_abp.start_slam:main',
-            'custom_map_merger = proyecto_abp.custom_map_merger:main'
+            'map_merge = proyecto_abp.custom_map_merger:main'
         ],
     },
 )
