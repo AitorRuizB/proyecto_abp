@@ -92,7 +92,8 @@ def launch_setup(context, *args, **kwargs):
                 '-string', robot_desc_cmd,
                 '-x', '0.0',
                 '-y', str(y_pose),
-                '-z', '1'
+                '-z', '1',
+                '-Y', '3.1416'
             ],
             output='screen'
         )
