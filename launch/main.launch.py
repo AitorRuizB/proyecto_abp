@@ -205,7 +205,7 @@ def launch_setup(context, *args, **kwargs):
 
         nodes.extend([
             rsp_node, spawn_node, static_tf_node, static_tf_odom_node,
-            fsm_start 
+            #fsm_start 
             #camera_start, laser_start, pd_start
         ])
 
