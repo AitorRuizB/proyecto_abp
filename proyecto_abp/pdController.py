@@ -9,7 +9,7 @@ from proyecto_abp.finiteStateMachine import STATES, TRANSITIONS, TRANSITION_TOPI
 
 VELOCITY_TOPIC = '/cmd_vel'  # Topic para publicar comandos de velocidad
 VCONS = 0.25
-EPSILON = 5 # visual error in pixels admited
+EPSILON = 25 # visual error in pixels admited
 MIN_VISUAL_TRACK_ITER = 15 # iterations of the visual controller to consider it successful and switch to laser based control
 class PDControllerParams():
 
@@ -119,9 +119,9 @@ class PDController(Node):
         if self.fsm_st == STATES[0]: # WANDER
             if not self.hallway_detected: # Searching hallway
                 # Controlador proporcional de velocidad lineal
-                cmd.linear.x = VCONS * self.laserPD_gains[0].getKp()
+                cmd.linear.x = VCONS 
                 # Controlador PD para steering
-                control_law = (self.laserPD_gains[1].getKp() * self.laser_error) + (self.laserPD_gains[1].getKd() * (self.laser_error - self.previous_laser_error) * FREQUENCY)
+                control_law = -0.1
                 self.get_logger().info('Buscando pasillo...')
                 self.controller_consecutive_actions_sent = 0
                 self.transition_hallway_sent = False  # Reset para próxima detección

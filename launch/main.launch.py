@@ -59,7 +59,7 @@ def launch_setup(context, *args, **kwargs):
         prefix = f'{robot_name}/'
         
         # Separar los robots 1 metro en el eje Y para que no choquen
-        y_pose = (i + 1) * 1.0  
+        y_pose = (i) * 2.5  
 
         # Añadir puentes de este robot al bridge
         bridge_config.extend([
@@ -92,7 +92,7 @@ def launch_setup(context, *args, **kwargs):
                 '-string', robot_desc_cmd,
                 '-x', '0.0',
                 '-y', str(y_pose),
-                '-z', '2'
+                '-z', '1'
             ],
             output='screen'
         )
@@ -205,7 +205,7 @@ def launch_setup(context, *args, **kwargs):
 
         nodes.extend([
             rsp_node, spawn_node, static_tf_node, static_tf_odom_node,
-            #fsm_start 
+            fsm_start 
             #camera_start, laser_start, pd_start
         ])
 
