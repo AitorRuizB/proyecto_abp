@@ -189,7 +189,8 @@ def launch_setup(context, *args, **kwargs):
 
         nodes.extend([
             rsp_node, spawn_node, static_tf_node, static_tf_odom_node,
-            fsm_start, camera_start, laser_start, pd_start
+            fsm_start 
+            #camera_start, laser_start, pd_start
         ])
 
     # 5. Guardar archivo YAML temporal y cargar el Bridge

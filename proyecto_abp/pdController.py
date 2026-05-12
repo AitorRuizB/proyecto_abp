@@ -47,7 +47,9 @@ class PDController(Node):
         self.controller_consecutive_actions_sent = 0 # detectar si ha conseguido minimizar el error visual
         self.fsm_st = STATES[0] # estado inicial de la FSM
 
-        self.robot_id = self.get_namespace() # id is a namespace like '/robot_1'
+        self.robot_id = self.get_namespace()
+        if self.robot_id == '/':
+            self.robot_id = '/robot_0'  # Default si no hay namespace
         
         # Suscripción a los topics de la cámara
         self.create_subscription(Float32, self.robot_id + VISUAL_ERROR_TOPIC, self.visual_error_callback, 10)
