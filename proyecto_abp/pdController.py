@@ -34,7 +34,6 @@ class PDControllerParams():
 class PDController(Node):
     def __init__(self):
         super().__init__('pd_controller')
-        
         # PD controller gains para visual y laser 
         self.visualPD_gains = PDControllerParams(kp=0.001, kd=0.0005, sensor_type='visual', is_steering=True)
         self.laserPD_gains = [
@@ -89,8 +88,6 @@ class PDController(Node):
             self.previous_laser_error = 0.0
             self.visual_controller_success = False
             self.transition_hallway_sent = False  # Reset para próxima transición
-        #TODO hacer reset cuando sea el estado 
-
 
     def hallway_callback(self, msg):
         """Callback para el estado de detección del pasillo/puerta."""
@@ -173,6 +170,7 @@ class PDController(Node):
                 self.transition_publisher.publish(String(data=TRANSITIONS[3])) # Publica TARGET_LOCATED
                 self.transition_target_located_sent = True
                 self.get_logger().info('✓ Transición publicada: TARGET_LOCATED')
+                self.destroy_node=True
             else:
                 self.transition_target_counter = 0 # Resetea el contador si el error es grande
 
@@ -183,14 +181,15 @@ class PDController(Node):
             
 
         # === PUBLICAR TRANSICIÓN (UNA SOLA VEZ) ===
-        if self.visual_controller_success and not self.transition_hallway_sent:
-            self.transition_publisher.publish(String(data=TRANSITIONS[0]))  # HALLWAY_FOUND
+        if self.visual_controller_success and not self.transition_hallway_sent and self.fsm_st == STATES[0]: # Solo publicar transición si el controlador visual ha tenido éxito y no se ha publicado antes
+            self.transition_publisher.publish(String(data=TRANSITIONS[1]))  # HALLWAY_FOUND
             self.transition_hallway_sent = True
             self.get_logger().info('✓ Transición publicada: HALLWAY_FOUND')
             
         # Asignar steering
         cmd.angular.z = -control_law
-
+        
+        self.get_logger().info(f'Control Law: {control_law:.4f}, Linear Vel: {cmd.linear.x:.2f}, Angular Vel: {cmd.angular.z:.4f}')
         self.cmd_vel_publisher.publish(cmd)
         # actualizar error de los sensores
         self.previous_visual_error = self.visual_error
