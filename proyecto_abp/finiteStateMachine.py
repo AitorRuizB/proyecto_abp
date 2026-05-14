@@ -62,21 +62,26 @@ class FiniteStateMachine(Node):
 
     def transition_callback(self, msg):
         transition = msg.data
-        if transition in TRANSITIONS:
-            
-            if transition == TRANSITIONS[0] and self.get_current_state() != STATES[1]:
+        if transition in TRANSITIONS and self.get_current_state() != STATES[TRANSITIONS.index(transition) + 1]:
+
+            # Hallway found
+            if transition == TRANSITIONS[0] and self.get_current_state() != STATES[1]: # switch to Approach Door
                 self.publish_state(STATES[1])
 
-            elif transition == TRANSITIONS[1] and self.get_current_state() != STATES[2]:
+            # Door Passed
+            elif transition == TRANSITIONS[1] and self.get_current_state() != STATES[2]: # switch to NavHallway
                 self.publish_state(STATES[2])
             
-            elif transition == TRANSITIONS[2] and self.get_current_state() != STATES[3]:
+            # Target Approach
+            elif transition == TRANSITIONS[2] and self.get_current_state() != STATES[3]: # switch to Approach Target
                 self.publish_state(STATES[3])
 
-            elif transition == TRANSITIONS[3] and self.get_current_state() != STATES[4]: # TARGET_LOCATED
+            # Target Located
+            elif transition == TRANSITIONS[3] and self.get_current_state() != STATES[4]: # switch to Finish SLAM
                 self.publish_state(STATES[4])
 
-            elif transition == TRANSITIONS[4] and self.get_current_state() != STATES[5]: # GLOBAL_MAP_READY
+            # Global Map Ready
+            elif transition == TRANSITIONS[4] and self.get_current_state() in [STATES[0], STATES[1], STATES[2]]: # switch to Nav2Target except for the robot who found the target
                 self.publish_state(STATES[5])
 
 def main(args=None):
