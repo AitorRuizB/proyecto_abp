@@ -55,12 +55,14 @@ class NavCoordinator(Node):
         super().__init__('nav_coordinator')
         self.num_robots = num_robots
         self.current_poses = {}
+        self.robot_states = {}  # <-- NUEVO: Rastrear estado de cada robot
         self.nav_triggered = False
         self.initial_pose_pubs = {}  # <-- NUEVO: Diccionario para los publishers
         
         for i in range(num_robots):
             robot_name = f'robot_{i}'
             self.current_poses[robot_name] = {'x': 0.0, 'y': 0.0, 'yaw': 0.0}
+            self.robot_states[robot_name] = 'WANDER'  # <-- NUEVO: Estado inicial
             
             # <-- NUEVO: Crear publisher de pose inicial para AMCL
             self.initial_pose_pubs[robot_name] = self.create_publisher(
@@ -72,15 +74,19 @@ class NavCoordinator(Node):
         self.get_logger().info(f"Coordinador Nav2 listo. Esperando transición a NAV2TARGET...")
 
     def odom_callback(self, msg, robot_name):
-        if not self.nav_triggered:
-            self.current_poses[robot_name]['x'] = msg.pose.pose.position.x
-            self.current_poses[robot_name]['y'] = msg.pose.pose.position.y
-            self.current_poses[robot_name]['yaw'] = get_yaw_from_quaternion(msg.pose.pose.orientation)
+        self.current_poses[robot_name]['x'] = msg.pose.pose.position.x
+        self.current_poses[robot_name]['y'] = msg.pose.pose.position.y
+        self.current_poses[robot_name]['yaw'] = get_yaw_from_quaternion(msg.pose.pose.orientation)
 
     def state_callback(self, msg, robot_name):
+        self.robot_states[robot_name] = msg.data  # <-- NUEVO: Actualizar estado
         if msg.data == NAVIGATION_ST and not self.nav_triggered:
             self.nav_triggered = True
             self.get_logger().info(f"¡[{robot_name}] activó NAV2TARGET! Lanzando Nav2...")
+    
+    def get_robots_in_nav2target(self):
+        """Retorna lista de robots en estado NAV2TARGET"""
+        return [name for name, state in self.robot_states.items() if state == NAVIGATION_ST]
 
     def send_goal_to_target(self, robot_name, target_x, target_y):
         if not rclpy.ok(): return 
@@ -112,11 +118,24 @@ def main():
     spin_thread = threading.Thread(target=lambda: rclpy.spin(coordinator), daemon=True)
     spin_thread.start()
 
+    # <-- MODIFICADO: Esperar a que primer robot llegue a NAV2TARGET
     while not coordinator.nav_triggered and rclpy.ok():
         time.sleep(0.1)
 
     if not rclpy.ok():
         return
+
+    # <-- NUEVO: Esperar un poco más para que otros robots también alcancen NAV2TARGET
+    time.sleep(3.0)
+    
+    # <-- NUEVO: Obtener lista de robots en NAV2TARGET
+    robots_to_launch = coordinator.get_robots_in_nav2target()
+    
+    if not robots_to_launch:
+        coordinator.get_logger().warning("Ningún robot en estado NAV2TARGET. Abortando lanzamiento de Nav2.")
+        return
+    
+    coordinator.get_logger().info(f"Robots en NAV2TARGET: {robots_to_launch}")
 
     pkg_nav2 = get_package_share_directory('nav2_bringup')
     nav2_launch_file = os.path.join(pkg_nav2, 'launch', 'bringup_launch.py')
@@ -124,12 +143,12 @@ def main():
 
     nodes_to_launch = []
 
-    for i in range(num_robots):
-        robot_name = f'robot_{i}'
+    # <-- MODIFICADO: Solo iterar sobre robots en NAV2TARGET
+    for robot_name in robots_to_launch:
         pose = coordinator.current_poses[robot_name]
         custom_params_file = generate_robot_nav_params(robot_name)
         
-        print(f"--- Configurando Nav2 para {robot_name} ---")
+        coordinator.get_logger().info(f"--- Configurando Nav2 para {robot_name} ---")
 
         nav_group = GroupAction(actions=[
             SetRemap(src='tf', dst='/tf'),
@@ -163,9 +182,8 @@ def main():
             
         if not rclpy.ok(): return
 
-        # <-- NUEVO: PUBLICAR POSE INICIAL A AMCL ANTES DE ENVIAR METAS
-        for i in range(num_robots):
-            robot_name = f'robot_{i}'
+        # <-- MODIFICADO: PUBLICAR POSE INICIAL A AMCL SOLO PARA ROBOTS EN NAV2TARGET
+        for robot_name in robots_to_launch:
             pose = coordinator.current_poses[robot_name]
             
             init_pose = PoseWithCovarianceStamped()
@@ -189,10 +207,9 @@ def main():
         # Dar margen a AMCL para que asimile las partículas y empiece a publicar TF
         time.sleep(2.0)
 
-        # <-- ENVÍO DE METAS ORIGINAL
-        for i in range(num_robots):
-            robot_name = f'robot_{i}'
-            target_x = float(i) 
+        # <-- MODIFICADO: ENVÍO DE METAS SOLO PARA ROBOTS EN NAV2TARGET
+        for idx, robot_name in enumerate(robots_to_launch):
+            target_x = float(idx) 
             target_y = 0.0
             coordinator.send_goal_to_target(robot_name, target_x=target_x, target_y=target_y)
 
