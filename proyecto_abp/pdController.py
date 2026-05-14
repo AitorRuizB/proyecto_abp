@@ -189,7 +189,7 @@ class PDController(Node):
         # Asignar steering
         cmd.angular.z = -control_law
         
-        self.get_logger().info(f'Control Law: {control_law:.4f}, Linear Vel: {cmd.linear.x:.2f}, Angular Vel: {cmd.angular.z:.4f}')
+        #self.get_logger().info(f'Control Law: {control_law:.4f}, Linear Vel: {cmd.linear.x:.2f}, Angular Vel: {cmd.angular.z:.4f}')
         self.cmd_vel_publisher.publish(cmd)
         # actualizar error de los sensores
         self.previous_visual_error = self.visual_error
