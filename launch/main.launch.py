@@ -3,10 +3,9 @@ import yaml
 import tempfile
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction, RegisterEventHandler, TimerAction
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, Command
-from launch.event_handlers import OnProcessStart
 from launch_ros.actions import Node
 
 ROBOT_XACRO = 'my_robot.xacro'
@@ -48,11 +47,8 @@ def launch_setup(context, *args, **kwargs):
     for i in range(0, num_robots):
         robot_name = f'robot_{i}'
         prefix = f'{robot_name}/'
-        
-        # Separar los robots 1 metro en el eje Y para que no choquen
         y_pose = (i) * 2.5  
 
-        # Añadir puentes de este robot al bridge
         bridge_config.extend([
             {'ros_topic_name': f'/{robot_name}/cmd_vel', 'gz_topic_name': f'/{robot_name}/cmd_vel', 'ros_type_name': 'geometry_msgs/msg/Twist', 'gz_type_name': 'gz.msgs.Twist', 'direction': 'ROS_TO_GZ'},
             {'ros_topic_name': f'/{robot_name}/odom', 'gz_topic_name': f'/{robot_name}/odom', 'ros_type_name': 'nav_msgs/msg/Odometry', 'gz_type_name': 'gz.msgs.Odometry', 'direction': 'GZ_TO_ROS'},
@@ -64,30 +60,30 @@ def launch_setup(context, *args, **kwargs):
 
         robot_desc_cmd = Command(['xacro ', urdf_file, ' prefix:=', prefix])
 
+        # CORRECCIÓN: Mapeos globales de TF agregados al robot_state_publisher
         rsp_node = Node(
             package='robot_state_publisher',
             executable='robot_state_publisher',
             name=f'robot_state_publisher_{robot_name}',
             namespace=robot_name,
-            parameters=[{'robot_description': robot_desc_cmd, 'use_sim_time': True}]
+            parameters=[{'robot_description': robot_desc_cmd, 'use_sim_time': True}],
+            remappings=[
+                ('/tf', '/tf'),
+                ('/tf_static', '/tf_static')
+            ]
         )
 
-        # Aquí hacemos Spawn con el ángulo hacia atrás (-Y 3.1416)
         spawn_node = Node(
             package='ros_gz_sim',
             executable='create',
             arguments=[
-                '-name', robot_name,
-                '-string', robot_desc_cmd,
-                '-x', '0.0',
-                '-y', str(y_pose),
-                '-z', '1',
-                '-Y', '2.7'
+                '-name', robot_name, '-string', robot_desc_cmd,
+                '-x', '0.0', '-y', str(y_pose), '-z', '1', '-Y', '2.7'
             ],
             output='screen'
         )
 
-        # Mantenemos solo la transformada pequeña interna del robot (odom -> base_footprint)
+        # CORRECCIÓN: Mapeos globales de TF agregados
         static_tf_odom_node = Node(
             package='tf2_ros',
             executable='static_transform_publisher',
@@ -96,11 +92,13 @@ def launch_setup(context, *args, **kwargs):
                 '--x', '0.0', '--y', '0.0', '--z', '0.0',
                 '--yaw', '0.0', '--pitch', '0.0', '--roll', '0.0', 
                 '--frame-id', f'{robot_name}/odom', '--child-frame-id', f'{robot_name}/base_footprint'
+            ],
+            remappings=[
+                ('/tf', '/tf'),
+                ('/tf_static', '/tf_static')
             ]
         )
 
-        # Los nodos FSM, camara, laser y PD se delegan ahora a start_logic, 
-        # así que ya NO los lanzamos aquí en el main.       
         fsm_node = Node(
             package='proyecto_abp',
             executable='finite_state_machine',
@@ -109,7 +107,7 @@ def launch_setup(context, *args, **kwargs):
             parameters=[{'goal': goal}],
             output='screen'
         )
-        # Gestor de alfombras (Solo una vez)
+
         if i == 0:
             carpet_node = Node(
                 package='proyecto_abp',
@@ -119,9 +117,7 @@ def launch_setup(context, *args, **kwargs):
             )
             nodes.append(carpet_node)
 
-        nodes.extend([
-            rsp_node, spawn_node, static_tf_odom_node, fsm_node
-        ])
+        nodes.extend([rsp_node, spawn_node, fsm_node])
 
     bridge_yaml_path = os.path.join(tempfile.gettempdir(), 'multirobot_bridge.yaml')
     with open(bridge_yaml_path, 'w') as f:
