@@ -2,19 +2,16 @@
 import rclpy
 from rclpy.node import Node
 from nav_msgs.msg import OccupancyGrid
-from rclpy.qos import QoSProfile, DurabilityPolicy # <--- IMPORTACIÓN DE QoS
+from rclpy.qos import QoSProfile, DurabilityPolicy
 import numpy as np
 
 class DynamicMapMerger(Node):
     def __init__(self):
         super().__init__('custom_map_merger')
         
-        # 1. Parámetros
         self.declare_parameter('num_robots', 2)
         self.num_robots = self.get_parameter('num_robots').value
 
-        # Perfil de QoS Estándar para Mapas (TRANSIENT LOCAL)
-        # Esto permite que el map_saver_cli reciba el mapa aunque el nodo ya lo haya publicado
         map_qos = QoSProfile(
             depth=1,
             durability=DurabilityPolicy.TRANSIENT_LOCAL
@@ -24,7 +21,6 @@ class DynamicMapMerger(Node):
         self.offsets_y = {}  
         self.subs = []       
 
-        # 2. Configuración dinámica de robots
         for i in range(0, self.num_robots):
             robot_name = f'robot_{i}'
             topic = f'/{robot_name}/map'
@@ -32,17 +28,15 @@ class DynamicMapMerger(Node):
             self.offsets_y[robot_name] = float(i - 1) * 1.0 
             self.map_msgs[robot_name] = None
             
-            # Suscripción a los mapas individuales (Slam Toolbox suele usar Transient Local)
             self.subs.append(
                 self.create_subscription(
                     OccupancyGrid, 
                     topic, 
                     self.make_callback(robot_name), 
-                    map_qos # Usamos el mismo QoS para leer
+                    map_qos
                 )
             )
 
-        # 3. Publicador del mapa unido con QoS Correcto
         self.pub = self.create_publisher(OccupancyGrid, '/map', map_qos)
         
         self.timer = self.create_timer(1.0, self.merge_and_publish)
@@ -55,6 +49,10 @@ class DynamicMapMerger(Node):
         self.map_msgs[robot_name] = msg
 
     def merge_and_publish(self):
+        # CORRECCIÓN: Si el contexto ya no es válido por un apagado en curso, salimos para evitar la condición de carrera
+        if not rclpy.ok():
+            return
+            
         base_msg = next((msg for msg in self.map_msgs.values() if msg is not None), None)
         if not base_msg:
             return
@@ -95,14 +93,24 @@ class DynamicMapMerger(Node):
         merged_msg.info.origin.position.y = - (center_px * res)
         merged_msg.data = canvas.flatten().tolist()
 
-        self.pub.publish(merged_msg)
+        # CORRECCIÓN: Envolver la publicación en un try-except por si se destruye el contexto a medio camino
+        try:
+            self.pub.publish(merged_msg)
+        except Exception:
+            pass
 
 def main(args=None):
     rclpy.init(args=args)
     node = DynamicMapMerger()
-    rclpy.spin(node)
+    
+    try:
+        rclpy.spin(node)
+    except (KeyboardInterrupt, rclpy.executors.ExternalShutdownException):
+        pass
+        
     node.destroy_node()
-    rclpy.shutdown()
+    if rclpy.ok():
+        rclpy.shutdown()
 
 if __name__ == '__main__':
     main()
