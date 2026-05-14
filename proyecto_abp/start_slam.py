@@ -1,22 +1,26 @@
 #!/usr/bin/env python3
 import sys
 import os
-import signal
+import subprocess
+import threading
+import time
+
 import rclpy
 from rclpy.node import Node
+from rclpy.context import Context
 from std_msgs.msg import String
-import subprocess
+
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchService, LaunchDescription
 from launch_ros.actions import Node as LaunchNode
 from launch_ros.actions import LifecycleNode
-import threading
-import time
 
 class SlamCoordinator(Node):
-    def __init__(self, num_robots):
-        super().__init__('slam_coordinator')
+    # Añadimos launch_service y context a los parámetros
+    def __init__(self, num_robots, launch_service, context):
+        super().__init__('slam_coordinator', context=context)
         self.num_robots = num_robots
+        self.launch_service = launch_service
         self.global_save_done = False
         self.transition_pubs = {}
         
@@ -59,8 +63,11 @@ class SlamCoordinator(Node):
                     pub.publish(msg)
                 
                 time.sleep(2.0)
-                # Apagado elegante
-                os.kill(os.getpid(), signal.SIGINT)
+                
+                # CORRECCIÓN: Apagado elegante usando la API en lugar de os.kill()
+                if self.launch_service:
+                    self.get_logger().info("Iniciando apagado ordenado del LaunchService...")
+                    self.launch_service.shutdown()
             else:
                 self.get_logger().error(f"Error al guardar mapa global: {result.stderr}")
                 self.global_save_done = False 
@@ -111,30 +118,36 @@ def main():
         parameters=[{'use_sim_time': True, 'num_robots': num_robots}]
     ))
 
-    rclpy.init()
-    coordinator = SlamCoordinator(num_robots)
+    # 1. Instanciamos LaunchService primero para poder pasarlo al coordinador
+    ls = LaunchService()
+    ls.include_launch_description(LaunchDescription(nodes_to_launch))
+
+    # 2. CORRECCIÓN: Creamos un contexto completamente aislado para evitar el error 'rcl_shutdown already called'
+    my_context = Context()
+    rclpy.init(context=my_context)
     
-    # CORRECCIÓN: Función auxiliar para capturar el error de apagado en el hilo
+    coordinator = SlamCoordinator(num_robots, launch_service=ls, context=my_context)
+    
     def spin_coordinator():
         try:
-            rclpy.spin(coordinator)
+            rclpy.spin(coordinator, context=my_context)
         except (KeyboardInterrupt, rclpy.executors.ExternalShutdownException):
+            pass
+        except Exception:
             pass
 
     spin_thread = threading.Thread(target=spin_coordinator, daemon=True)
     spin_thread.start()
 
-    ls = LaunchService()
-    ls.include_launch_description(LaunchDescription(nodes_to_launch))
-    
     try:
         ls.run()
     except KeyboardInterrupt:
         pass
     finally:
-        if rclpy.ok():
+        # 3. Limpieza segura solo de nuestro contexto aislado
+        if my_context.ok():
             try:
-                rclpy.shutdown()
+                rclpy.shutdown(context=my_context)
             except Exception:
                 pass
 
