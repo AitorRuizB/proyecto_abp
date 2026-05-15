@@ -22,20 +22,33 @@ class FiniteStateMachine(Node):
         if self.robot_id == '/':
             self.robot_id = '/robot_0'  # Default si no hay namespace
         self.state_publisher = self.create_publisher(String, self.robot_id + STATE_TOPIC, 10)
-        self.current_state = 'WANDER'  # Estado inicial
+        self.current_state = STATES[0]  # Estado inicial
 
         # subcribe to transitions topics to update the state
         self.create_subscription(String, self.robot_id + TRANSITION_TOPIC, self.transition_callback, 10)
         self.goal_publisher = self.create_publisher(String, self.robot_id + GOAL_TOPIC, 10)
         
-        # Leer el parámetro goal desde la configuración de ROS
+        # Leer el parámetro goal y num_robots desde la configuración de ROS
         self.declare_parameter('goal', 'green')
+        self.declare_parameter('num_robots', 2)
         self.current_goal = self.get_parameter('goal').value
+        self.num_robots = self.get_parameter('num_robots').value
+
+        # Crear publishers para notificar a OTROS robots
+        self.other_robots_transition_pubs = []
+        current_robot_name = self.robot_id.strip('/')
+        for i in range(self.num_robots):
+            other_robot_name = f'robot_{i}'
+            if other_robot_name != current_robot_name:
+                topic = f'/{other_robot_name}{TRANSITION_TOPIC}'
+                self.other_robots_transition_pubs.append(
+                    self.create_publisher(String, topic, 10)
+                )
 
         # Create a timer to periodically publish the state at 12Hz
         self.create_timer(1.0 / FREQUENCY, self.periodic_publish)
 
-        self.get_logger().info(f"Finite State Machine for {self.robot_id} initialized with goal: {self.current_goal}.")
+        self.get_logger().info(f"FSM para {self.robot_id} inicializada. Objetivo: {self.current_goal}. Total de robots: {self.num_robots}.")
 
     def periodic_publish(self):
         """Called by a timer to periodically publish the current state and goal."""
@@ -50,6 +63,14 @@ class FiniteStateMachine(Node):
         self.state_publisher.publish(msg)
         if is_new_state:
             self.get_logger().info(f'State changed to: {state}')
+
+        # Si este robot alcanza FINISH_SLAM (STATES[4]), notifica al resto para que pasen a NAV2.
+        if state == STATES[4]:
+            self.get_logger().info(f"¡{self.robot_id.strip('/')} alcanzó FINISH_SLAM! Notificando a otros robots.")
+            transition_msg = String()
+            transition_msg.data = TRANSITIONS[4] # GLOBAL_MAP_READY
+            for pub in self.other_robots_transition_pubs:
+                pub.publish(transition_msg)
 
     def get_current_state(self):
         return self.current_state  

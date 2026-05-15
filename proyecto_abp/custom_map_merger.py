@@ -25,7 +25,7 @@ class DynamicMapMerger(Node):
             robot_name = f'robot_{i}'
             topic = f'/{robot_name}/map'
             
-            self.offsets_y[robot_name] = float(i - 1) * 1.0 
+            self.offsets_y[robot_name] = float(i) * 2.5 # Hardcoded bs
             self.map_msgs[robot_name] = None
             
             self.subs.append(

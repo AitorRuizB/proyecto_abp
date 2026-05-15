@@ -10,6 +10,7 @@ from launch_ros.actions import Node
 
 ROBOT_XACRO = 'my_robot.xacro'
 MAPA_WORLD_FILE = 'laberinto_v2_world.sdf'
+RVIZ_FILE = 'robot_0.rviz'
 
 def generate_launch_description():
     return LaunchDescription([
@@ -130,7 +131,7 @@ def launch_setup(context, *args, **kwargs):
         output='screen'
     )
 
-    rviz_config = os.path.join(pkg_proyecto_abp, 'rviz', 'config.rviz')
+    rviz_config = os.path.join(pkg_proyecto_abp, 'rviz', RVIZ_FILE)
     rviz_node = Node(
         package='rviz2',
         executable='rviz2',
