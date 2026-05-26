@@ -10,7 +10,7 @@ from launch_ros.actions import Node
 
 ROBOT_XACRO = 'my_robot.xacro'
 MAPA_WORLD_FILE = 'laberinto_v2_world.sdf'
-RVIZ_FILE = 'robot_0.rviz'
+RVIZ_FILE = 'config.rviz'
 
 def generate_launch_description():
     return LaunchDescription([
@@ -61,7 +61,6 @@ def launch_setup(context, *args, **kwargs):
 
         robot_desc_cmd = Command(['xacro ', urdf_file, ' prefix:=', prefix])
 
-        # CORRECCIÓN: Mapeos globales de TF agregados al robot_state_publisher
         rsp_node = Node(
             package='robot_state_publisher',
             executable='robot_state_publisher',
@@ -84,7 +83,10 @@ def launch_setup(context, *args, **kwargs):
             output='screen'
         )
 
-        # CORRECCIÓN: Mapeos globales de TF agregados
+        # NUEVO NODO AÑADIDO: Crea la transformación /map --> robot_x/odom al vuelo
+        # Mapea la posición real de spawn en Y y el ángulo Yaw inicial (2.7)
+        
+
         static_tf_odom_node = Node(
             package='tf2_ros',
             executable='static_transform_publisher',
@@ -97,6 +99,16 @@ def launch_setup(context, *args, **kwargs):
             remappings=[
                 ('/tf', '/tf'),
                 ('/tf_static', '/tf_static')
+            ]
+        )
+        static_tf_map_to_odom_node = Node(
+            package='tf2_ros',
+            executable='static_transform_publisher',
+            name=f'static_tf_map_to_odom_{robot_name}',
+            arguments=[
+                '--x', '0.0', '--y', str(y_pose), '--z', '0.0',
+                '--yaw', '2.7', '--pitch', '0.0', '--roll', '0.0', 
+                '--frame-id', 'map', '--child-frame-id', f'{robot_name}/odom'
             ]
         )
 
@@ -118,7 +130,8 @@ def launch_setup(context, *args, **kwargs):
             )
             nodes.append(carpet_node)
 
-        nodes.extend([rsp_node, spawn_node, fsm_node])
+        # CORRECCIÓN: Ahora se añaden a la ejecución tanto el nuevo puente a odom como el de footprint
+        nodes.extend([rsp_node, spawn_node, fsm_node, static_tf_odom_node, static_tf_map_to_odom_node])
 
     bridge_yaml_path = os.path.join(tempfile.gettempdir(), 'multirobot_bridge.yaml')
     with open(bridge_yaml_path, 'w') as f:

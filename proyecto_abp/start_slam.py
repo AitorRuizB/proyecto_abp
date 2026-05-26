@@ -95,7 +95,7 @@ def main():
             parameters=[slam_yaml, {
                 'odom_frame': f'{robot_name}/odom',
                 'base_frame': f'{robot_name}/base_footprint',
-                'map_frame': 'map', 
+                'map_frame': f'{robot_name}/map', 
                 'scan_topic': f'/{robot_name}/scan',
                 'use_sim_time': True,
                 'transform_publish_period': 0.05
