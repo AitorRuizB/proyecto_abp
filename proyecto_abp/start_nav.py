@@ -18,6 +18,10 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import SetRemap
 from proyecto_abp.finiteStateMachine import STATES
 
+from ament_index_python.packages import get_package_share_directory
+import os
+
+
 NAVIGATION_ST = 'NAV2TARGET'
 
 def get_yaw_from_quaternion(q):
@@ -137,9 +141,11 @@ def main():
     
     coordinator.get_logger().info(f"Robots en NAV2TARGET: {robots_to_launch}")
 
+    pkg_proyecto_abp = get_package_share_directory('proyecto_abp')
+    map_path = os.path.join(pkg_proyecto_abp, 'config', 'map.yaml') # <-- APUNTA AQUÍ
+
     pkg_nav2 = get_package_share_directory('nav2_bringup')
     nav2_launch_file = os.path.join(pkg_nav2, 'launch', 'bringup_launch.py')
-    map_path = os.path.expanduser('~/mapa_global_unificado.yaml')
 
     nodes_to_launch = []
 

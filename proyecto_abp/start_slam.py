@@ -7,7 +7,6 @@ import time
 
 import rclpy
 from rclpy.node import Node
-from rclpy.context import Context
 from std_msgs.msg import String
 
 from ament_index_python.packages import get_package_share_directory
@@ -15,10 +14,13 @@ from launch import LaunchService, LaunchDescription
 from launch_ros.actions import Node as LaunchNode
 from launch_ros.actions import LifecycleNode
 
+# --- IMPORTACIÓN DE TU FUENTE DE VERDAD (ESTADOS FSM) ---
+from proyecto_abp.finiteStateMachine import STATES
+
 class SlamCoordinator(Node):
-    # Añadimos launch_service y context a los parámetros
-    def __init__(self, num_robots, launch_service, context):
-        super().__init__('slam_coordinator', context=context)
+    def __init__(self, num_robots, launch_service):
+        # Inicializamos sin pasar contexto para que use el entorno global estándar
+        super().__init__('slam_coordinator')
         self.num_robots = num_robots
         self.launch_service = launch_service
         self.global_save_done = False
@@ -26,36 +28,57 @@ class SlamCoordinator(Node):
         
         for i in range(num_robots):
             robot_name = f'robot_{i}'
+            
+            # Callback fijado con la lambda segura
             self.create_subscription(
-                String, f'/{robot_name}/state', 
-                lambda msg, r=robot_name: self.state_callback(msg, r), 10)
+                String, 
+                f'/{robot_name}/state', 
+                lambda msg, r=robot_name: self.state_callback(msg, r), 
+                10
+            )
             
             self.transition_pubs[robot_name] = self.create_publisher(
                 String, f'/{robot_name}/transition', 10)
 
-        self.get_logger().info("Coordinador iniciado. Guardaré el mapa GLOBAL cuando detecte FINISH_SLAM.")
+        # Usamos STATES[4] para que el log sea dinámico
+        self.get_logger().info(f"Coordinador iniciado. Guardaré el mapa GLOBAL cuando detecte {STATES[4]}.")
 
     def state_callback(self, msg, robot_name):
-        if msg.data == 'FINISH_SLAM' and not self.global_save_done:
+       
+
+        # --- COMPROBACIÓN CON EL ESTILO PDCONTROLLER ---
+        # msg.data.strip() limpia la basura y lo comparamos con la constante oficial
+        if msg.data.strip() == STATES[4] and not self.global_save_done:
             self.global_save_done = True
-            self.get_logger().info(f"[{robot_name}] ha llegado a FINISH_SLAM. Guardando MAPA GLOBAL...")
+            self.get_logger().info(f"[{robot_name}] ha llegado a {STATES[4]}. Guardando MAPA GLOBAL...")
             threading.Thread(target=self.save_global_map_procedure).start()
 
     def save_global_map_procedure(self):
-        map_path = os.path.expanduser('~/mapa_global_unificado')
-        
+        try:
+            pkg_share = get_package_share_directory('proyecto_abp')
+            config_dir = os.path.join(pkg_share, 'config')
+            os.makedirs(config_dir, exist_ok=True)
+            map_path = os.path.join(config_dir, 'map')
+        except Exception as e:
+            self.get_logger().error(f"No se pudo encontrar el paquete: {e}")
+            map_path = os.path.expanduser('~/map')
+
+        # CORRECCIÓN: Forzamos a map_saver_cli a escuchar el canal unificado definitivo
         command = [
             'ros2', 'run', 'nav2_map_server', 'map_saver_cli',
             '-f', map_path,
-            '--ros-args', '-p', 'save_map_timeout:=10000.0'
+            '--ros-args', 
+            '-p', 'save_map_timeout:=10000.0',
+            '-p', 'map_subscribe_transient_local:=True',
+            '-r', '/map:=/map'  # Asegura que mapea el tópico global del merger
         ]
         
         try:
-            self.get_logger().info("Ejecutando map_saver_cli para el tópico /map...")
+            self.get_logger().info(f"Ejecutando map_saver_cli en: {map_path}...")
             result = subprocess.run(command, capture_output=True, text=True)
             
             if result.returncode == 0:
-                self.get_logger().info("¡MAPA GLOBAL guardado con éxito en ~/mapa_global_unificado!")
+                self.get_logger().info("¡MAPA GLOBAL guardado con éxito en config/map!")
                 
                 msg = String()
                 msg.data = 'GLOBAL_MAP_READY'
@@ -64,10 +87,12 @@ class SlamCoordinator(Node):
                 
                 time.sleep(2.0)
                 
-                # CORRECCIÓN: Apagado elegante usando la API en lugar de os.kill()
                 if self.launch_service:
-                    self.get_logger().info("Iniciando apagado ordenado del LaunchService...")
+                    self.get_logger().info("Iniciando apagado ordenado del LaunchService de SLAM...")
                     self.launch_service.shutdown()
+                
+                self.get_logger().info(">>> PROCESO DE MAPEO TERMINADO. Terminal liberada con éxito <<<")
+                
             else:
                 self.get_logger().error(f"Error al guardar mapa global: {result.stderr}")
                 self.global_save_done = False 
@@ -101,8 +126,8 @@ def main():
                 'transform_publish_period': 0.05
             }],
             remappings=[('/map', f'/{robot_name}/map'), 
-                        ('/tf', '/tf'), 
-                        ('/tf_static', '/tf_static'),
+                         
+                        
                         ('/scan', f'/{robot_name}/scan')
                         ]
         ))
@@ -118,25 +143,22 @@ def main():
         parameters=[{'use_sim_time': True, 'num_robots': num_robots}]
     ))
 
-    # 1. Instanciamos LaunchService primero para poder pasarlo al coordinador
+    # Instanciamos el LaunchService principal
     ls = LaunchService()
     ls.include_launch_description(LaunchDescription(nodes_to_launch))
 
-    # 2. CORRECCIÓN: Creamos un contexto completamente aislado para evitar el error 'rcl_shutdown already called'
-    my_context = Context()
-    rclpy.init(context=my_context)
+    # Inicialización de ROS 2 global estándar (al estilo de start_nav.py)
+    rclpy.init()
     
-    coordinator = SlamCoordinator(num_robots, launch_service=ls, context=my_context)
+    # Instanciamos el coordinador
+    coordinator = SlamCoordinator(num_robots, launch_service=ls)
     
-    def spin_coordinator():
-        try:
-            rclpy.spin(coordinator, context=my_context)
-        except (KeyboardInterrupt, rclpy.executors.ExternalShutdownException):
-            pass
-        except Exception:
-            pass
+    # MODIFICACIÓN DE RENDIMIENTO: Usamos el MultiThreadedExecutor nativo de ROS 2
+    executor = rclpy.executors.MultiThreadedExecutor()
+    executor.add_node(coordinator)
 
-    spin_thread = threading.Thread(target=spin_coordinator, daemon=True)
+    # El spin se ejecuta a través del executor en el hilo secundario
+    spin_thread = threading.Thread(target=lambda: executor.spin(), daemon=True)
     spin_thread.start()
 
     try:
@@ -144,12 +166,10 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
-        # 3. Limpieza segura solo de nuestro contexto aislado
-        if my_context.ok():
-            try:
-                rclpy.shutdown(context=my_context)
-            except Exception:
-                pass
+        # Limpieza ordenada global de los hilos de ROS 2
+        coordinator.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 if __name__ == '__main__':
     main()

@@ -101,16 +101,7 @@ def launch_setup(context, *args, **kwargs):
                 ('/tf_static', '/tf_static')
             ]
         )
-        static_tf_map_to_odom_node = Node(
-            package='tf2_ros',
-            executable='static_transform_publisher',
-            name=f'static_tf_map_to_odom_{robot_name}',
-            arguments=[
-                '--x', '0.0', '--y', str(y_pose), '--z', '0.0',
-                '--yaw', '2.7', '--pitch', '0.0', '--roll', '0.0', 
-                '--frame-id', 'map', '--child-frame-id', f'{robot_name}/odom'
-            ]
-        )
+        
 
         fsm_node = Node(
             package='proyecto_abp',
@@ -131,7 +122,7 @@ def launch_setup(context, *args, **kwargs):
             nodes.append(carpet_node)
 
         # CORRECCIÓN: Ahora se añaden a la ejecución tanto el nuevo puente a odom como el de footprint
-        nodes.extend([rsp_node, spawn_node, fsm_node, static_tf_odom_node, static_tf_map_to_odom_node])
+        nodes.extend([rsp_node, spawn_node, fsm_node, static_tf_odom_node])
 
     bridge_yaml_path = os.path.join(tempfile.gettempdir(), 'multirobot_bridge.yaml')
     with open(bridge_yaml_path, 'w') as f:
