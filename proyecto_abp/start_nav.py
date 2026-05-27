@@ -5,7 +5,6 @@ import time
 import threading
 import math
 import rclpy
-import yaml
 from rclpy.node import Node
 from rclpy.action import ActionClient
 from rclpy.parameter import Parameter
@@ -28,58 +27,6 @@ def get_yaw_from_quaternion(q):
     siny_cosp = 2 * (q.w * q.z + q.x * q.y)
     cosy_cosp = 1 - 2 * (q.y * q.y + q.z * q.z)
     return math.atan2(siny_cosp, cosy_cosp)
-
-def generate_robot_nav_params(robot_name):
-    nav2_pkg = get_package_share_directory('nav2_bringup')
-    default_params_file = os.path.join(nav2_pkg, 'params', 'nav2_params.yaml')
-    
-    with open(default_params_file, 'r') as f:
-        params = yaml.safe_load(f)
-        
-    def replace_frames(d):
-        if isinstance(d, dict):
-            for k, v in d.items():
-                if isinstance(v, str):
-                    clean_v = v.strip("'\"")
-                    if clean_v == 'odom':
-                        d[k] = f'{robot_name}/odom'
-                    elif clean_v == 'base_link' or clean_v == 'base_footprint':
-                        d[k] = f'{robot_name}/base_footprint'
-                    elif (clean_v == 'scan' or clean_v == '/scan') and k in ['topic', 'scan_topic']:
-                        d[k] = f'/{robot_name}/scan'
-                else:
-                    replace_frames(v)
-            
-            # CONTROL CRÍTICO DEL TAMAÑO DE LAS COSTMAPS
-            if 'ros__parameters' in d:
-                if 'global_costmap' in d['ros__parameters']:
-                    gc = d['ros__parameters']['global_costmap']['ros__parameters']
-                    gc['robot_base_frame'] = f'{robot_name}/base_footprint'
-                    gc['global_frame'] = 'map'
-                    gc['width'] = 50
-                    gc['height'] = 50
-                    gc['rolling_window'] = False
-                    gc['track_unknown_space'] = True
-                
-                if 'local_costmap' in d['ros__parameters']:
-                    lc = d['ros__parameters']['local_costmap']['ros__parameters']
-                    lc['robot_base_frame'] = f'{robot_name}/base_footprint'
-                    lc['global_frame'] = f'{robot_name}/odom'
-                    lc['rolling_window'] = True
-                    lc['width'] = 5
-                    lc['height'] = 5
-
-        elif isinstance(d, list):
-            for item in d:
-                replace_frames(item)
-
-    replace_frames(params)
-        
-    output_path = os.path.expanduser(f'~/nav2_params_{robot_name}.yaml')
-    with open(output_path, 'w') as f:
-        yaml.dump(params, f, default_flow_style=False)
-        
-    return output_path
 
 class NavCoordinator(Node):
     def __init__(self, num_robots):
@@ -163,7 +110,7 @@ def main():
         return
 
     pkg_proyecto_abp = get_package_share_directory('proyecto_abp')
-    map_path = os.path.join(pkg_proyecto_abp, 'config', 'mapa.yaml') # Corregido al nombre de tu log 'mapa.yaml'
+    map_path = os.path.join(pkg_proyecto_abp, 'config', 'mapa.yaml')
 
     pkg_nav2 = get_package_share_directory('nav2_bringup')
     nav2_launch_file = os.path.join(pkg_nav2, 'launch', 'bringup_launch.py')
@@ -171,8 +118,15 @@ def main():
     nodes_to_launch = []
 
     for robot_name in movers:
-        custom_params_file = generate_robot_nav_params(robot_name)
-        coordinator.get_logger().info(f"🚀 Lanzando Nav2 para {robot_name} con parámetros dinámicos: {custom_params_file}")
+        # AQUÍ CARGAMOS TU ARCHIVO DIRECTAMENTE SIN PARSEAR NADA
+        custom_params_file = os.path.join(pkg_proyecto_abp, 'config', f'nav2_{robot_name}.yaml')
+        
+        # Verificamos si existe antes de lanzar para evitar crashes de ROS2
+        if not os.path.exists(custom_params_file):
+            coordinator.get_logger().error(f"⚠️ NO SE ENCUENTRA EL ARCHIVO: {custom_params_file}")
+            continue
+
+        coordinator.get_logger().info(f"🚀 Lanzando Nav2 para {robot_name} usando archivo estático: {custom_params_file}")
 
         nav_group = GroupAction(actions=[
             SetRemap(src='tf', dst='/tf'),
@@ -191,7 +145,8 @@ def main():
                     'namespace': robot_name,
                     'use_namespace': 'True',
                     'autostart': 'True',
-                    'params_file': custom_params_file # Forzado aquí
+                    'params_file': custom_params_file,
+                    'use_composition': 'False'
                 }.items()
             )
         ])
@@ -219,12 +174,11 @@ def main():
                 coordinator.initial_pose_pubs[robot_name].publish(init_pose)
                 coordinator.get_logger().info(f"✅ Pose inicial cargada mediante TF para {robot_name}")
             except (LookupException, ConnectivityException, ExtrapolationException) as e:
-                coordinator.get_logger().error(f"Error de TF: {e}")
+                coordinator.get_logger().error(f"Error de TF al inyectar pose: {e}")
 
         time.sleep(3.0)
 
         for idx, robot_name in enumerate(movers):
-            # Posición de encuentro establecida en (2.0, 2.0)
             coordinator.send_goal_to_target(robot_name, target_x=2.0, target_y=2.0 + float(idx * 1.0))
 
     threading.Thread(target=delayed_goal_sender, daemon=True).start()
