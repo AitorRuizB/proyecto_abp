@@ -25,6 +25,7 @@
             
             <child_frame_id>$(arg prefix)base_footprint</child_frame_id> 
             
+            
         </plugin>
     </gazebo>
 

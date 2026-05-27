@@ -87,20 +87,25 @@ def launch_setup(context, *args, **kwargs):
         # Mapea la posición real de spawn en Y y el ángulo Yaw inicial (2.7)
         
 
-        static_tf_odom_node = Node(
+       
+        static_tf_robot_map = Node(
             package='tf2_ros',
             executable='static_transform_publisher',
-            name=f'static_tf_odom_{robot_name}',
+            name=f'static_tf_map_{robot_name}',
             arguments=[
                 '--x', '0.0', '--y', '0.0', '--z', '0.0',
                 '--yaw', '0.0', '--pitch', '0.0', '--roll', '0.0', 
-                '--frame-id', f'{robot_name}/odom', '--child-frame-id', f'{robot_name}/base_footprint'
-            ],
-            remappings=[
-                ('/tf', '/tf'),
-                ('/tf_static', '/tf_static')
-            ]
-        )
+                '--frame-id', f'{robot_name}/map', '--child-frame-id', f'{robot_name}/odom'
+            ])
+        static_tf_map_global = Node(
+            package='tf2_ros',
+            executable='static_transform_publisher',
+            name=f'static_tf_map_{robot_name}',
+            arguments=[
+                '--x', '0.0', '--y', str(y_pose), '--z', '0.0',
+                '--yaw', '2.7', '--pitch', '0.0', '--roll', '0.0', 
+                '--frame-id', 'map', '--child-frame-id', f'{robot_name}/map'
+            ])    
         
 
         fsm_node = Node(
@@ -122,7 +127,7 @@ def launch_setup(context, *args, **kwargs):
             nodes.append(carpet_node)
 
         # CORRECCIÓN: Ahora se añaden a la ejecución tanto el nuevo puente a odom como el de footprint
-        nodes.extend([rsp_node, spawn_node, fsm_node, static_tf_odom_node])
+        nodes.extend([rsp_node, spawn_node, fsm_node, static_tf_robot_map, static_tf_map_global])
 
     bridge_yaml_path = os.path.join(tempfile.gettempdir(), 'multirobot_bridge.yaml')
     with open(bridge_yaml_path, 'w') as f:
