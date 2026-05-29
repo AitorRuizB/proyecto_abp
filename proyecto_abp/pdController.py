@@ -118,7 +118,11 @@ class PDController(Node):
                 # Controlador proporcional de velocidad lineal
                 cmd.linear.x = VCONS 
                 # Controlador PD para steering
-                control_law = -0.1
+                if self.there_is_obstacle:
+                    control_law = (self.laserPD_gains[1].getKp() * self.laser_error) + (self.laserPD_gains[1].getKd() * (self.laser_error - self.previous_laser_error) * FREQUENCY)
+                else:
+                    control_law = -0.1
+                    
                 self.get_logger().info('Buscando pasillo...')
                 self.controller_consecutive_actions_sent = 0
                 self.transition_hallway_sent = False  # Reset para próxima detección
