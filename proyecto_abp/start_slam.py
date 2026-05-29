@@ -48,13 +48,16 @@ class SlamCoordinator(Node):
 
     def save_global_map_procedure(self):
         try:
-            pkg_share = get_package_share_directory('proyecto_abp')
-            config_dir = os.path.join(pkg_share, 'config')
+            # Modificación para guardar el mapa directamente en el directorio de fuentes (src)
+            # en lugar del directorio de instalación (install), usando una ruta relativa
+            # al directorio de ejecución del comando `ros2 run`.
+            execution_path = os.getcwd()
+            config_dir = os.path.join(execution_path, 'src', 'proyecto_abp', 'config')
             os.makedirs(config_dir, exist_ok=True)
-            map_path = os.path.join(config_dir, 'map')
+            map_path = os.path.join(config_dir, 'mapa')
         except Exception as e:
-            self.get_logger().error(f"Error de paquete: {e}")
-            map_path = os.path.expanduser('~/map')
+            self.get_logger().error(f"Error al construir la ruta del mapa: {e}. Usando ruta de fallback.")
+            map_path = os.path.expanduser('~/mapa') # Fallback por si la ruta falla
 
         command = [
             'ros2', 'run', 'nav2_map_server', 'map_saver_cli',
@@ -70,7 +73,7 @@ class SlamCoordinator(Node):
             result = subprocess.run(command, capture_output=True, text=True)
             
             if result.returncode == 0:
-                self.get_logger().info("✅ ¡MAPA GLOBAL guardado con éxito en config/map!")
+                self.get_logger().info("✅ ¡MAPA GLOBAL guardado con éxito en config/mapa.yaml y config/mapa.pgm!")
                 
                 msg = String()
                 msg.data = 'GLOBAL_MAP_READY'
