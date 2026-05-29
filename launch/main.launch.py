@@ -1,5 +1,6 @@
 import os
 import yaml
+import math
 import tempfile
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
@@ -45,11 +46,22 @@ def launch_setup(context, *args, **kwargs):
 
     urdf_file = os.path.join(pkg_proyecto_abp, 'urdf', ROBOT_XACRO)
 
+    yaw_0 = 2.7
+    yaw_1 = math.pi / 2
+    yaw_diff = yaw_1 - yaw_0
+
     for i in range(0, num_robots):
         robot_name = f'robot_{i}'
         prefix = f'{robot_name}/'
         y_pose = (i) * 2.5  
+        
+        if i % 2 == 0:
+            sign = 1
+        else:
+            sign = -1
 
+        current_yaw = (yaw_0 + i * yaw_diff) * sign
+        
         bridge_config.extend([
             {'ros_topic_name': f'/{robot_name}/cmd_vel', 'gz_topic_name': f'/{robot_name}/cmd_vel', 'ros_type_name': 'geometry_msgs/msg/Twist', 'gz_type_name': 'gz.msgs.Twist', 'direction': 'ROS_TO_GZ'},
             {'ros_topic_name': f'/{robot_name}/odom', 'gz_topic_name': f'/{robot_name}/odom', 'ros_type_name': 'nav_msgs/msg/Odometry', 'gz_type_name': 'gz.msgs.Odometry', 'direction': 'GZ_TO_ROS'},
@@ -78,7 +90,7 @@ def launch_setup(context, *args, **kwargs):
             executable='create',
             arguments=[
                 '-name', robot_name, '-string', robot_desc_cmd,
-                '-x', '0.0', '-y', str(y_pose), '-z', '1', '-Y', '2.7'
+                '-x', '0.0', '-y', str(y_pose), '-z', '1', '-Y', str(current_yaw)
             ],
             output='screen'
         )
@@ -101,7 +113,7 @@ def launch_setup(context, *args, **kwargs):
             name=f'static_tf_map_{robot_name}',
             arguments=[
                 '--x', '0.0', '--y', str(y_pose), '--z', '0.0',
-                '--yaw', '2.7', '--pitch', '0.0', '--roll', '0.0', 
+                '--yaw', str(current_yaw), '--pitch', '0.0', '--roll', '0.0', 
                 '--frame-id', 'map', '--child-frame-id', f'{robot_name}/map'
             ])    
         
