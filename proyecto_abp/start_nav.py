@@ -16,9 +16,10 @@ from ament_index_python.packages import get_package_share_directory
 from launch import LaunchService, LaunchDescription
 from launch.actions import IncludeLaunchDescription, GroupAction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch_ros.actions import Node as LaunchNode
 from launch_ros.actions import PushRosNamespace
 
-from tf2_ros import Buffer, TransformListener # <-- IMPORTANTE
+from tf2_ros import Buffer, TransformListener
 from proyecto_abp.finiteStateMachine import STATES
 
 class NavCoordinator(Node):
@@ -47,7 +48,7 @@ class NavCoordinator(Node):
         execution_path = os.getcwd()
         poses_file = os.path.join(execution_path, 'src', 'proyecto_abp', 'config', 'robot_poses.yaml')
         
-        for _ in range(15): # Esperamos hasta 15s para que a SLAM le de tiempo a escribir
+        for _ in range(15): 
             if os.path.exists(poses_file):
                 break
             time.sleep(1.0)
@@ -85,7 +86,7 @@ class NavCoordinator(Node):
                 self.get_logger().error(f"❌ Nav2 Action Server no disponible para {robot_name}. Revisa los logs.")
                 return
             goal_msg = NavigateToPose.Goal()
-            goal_msg.pose.header.frame_id = 'map'  # Destino respecto al mapa global
+            goal_msg.pose.header.frame_id = 'map'  
             goal_msg.pose.header.stamp = self.get_clock().now().to_msg() 
             goal_msg.pose.pose.position.x = float(target_x)
             goal_msg.pose.pose.position.y = float(target_y)
@@ -134,17 +135,14 @@ def delayed_goal_sender(coordinator: NavCoordinator):
     winner = coordinator.winner_robot
     if not winner: return
 
-    # --- NUEVO: OBTENCIÓN DINÁMICA DE LA POSE DEL GANADOR RESPECTO A 'map' ---
     target_x, target_y = 0.0, 0.0
     try:
-        # Escuchamos directamente el TF actual del ganador
         t = coordinator.tf_buffer.lookup_transform('map', f'{winner}/base_footprint', rclpy.time.Time())
         target_x = t.transform.translation.x
         target_y = t.transform.translation.y
         coordinator.get_logger().info(f"✅ Pose real capturada: {winner} está en X={target_x:.2f}, Y={target_y:.2f}")
     except Exception as e:
         coordinator.get_logger().error(f"⚠️ No se pudo obtener TF vivo de {winner}. Fallback a YAML. Error: {e}")
-        # Solo en caso de fallo crítico recurrimos al YAML
         target_pose = coordinator.robot_map_poses.get(winner)
         if target_pose:
             target_x, target_y = target_pose['x'], target_pose['y']
@@ -173,9 +171,6 @@ def main():
     nodes_to_launch = [IncludeLaunchDescription(PythonLaunchDescriptionSource(localization_launch_file))]
 
     try:
-        pkg_nav2_bringup = get_package_share_directory('nav2_bringup')
-        nav_launch_file = os.path.join(pkg_nav2_bringup, 'launch', 'navigation_launch.py')
-        
         template_params_path = os.path.join(pkg_proyecto_abp, 'config', 'nav2_params.yaml')
         with open(template_params_path, 'r') as f:
             template_content = f.read()
@@ -193,8 +188,57 @@ def main():
             with open(tmp_yaml_file, 'w') as f:
                 f.write(final_yaml)
             
-            nav_args = {'use_sim_time': 'True', 'autostart': 'True', 'params_file': tmp_yaml_file}
-            nodes_to_launch.append(GroupAction(actions=[PushRosNamespace(robot_name), IncludeLaunchDescription(PythonLaunchDescriptionSource(nav_launch_file), launch_arguments=nav_args.items())]))
+            # --- LANZAMIENTO MANUAL Y LIMPIO DE NAV2 ---
+            lifecycle_nodes = [
+                'controller_server', 'smoother_server', 'planner_server', 
+                'route_server', 'behavior_server', 'bt_navigator', 
+                'waypoint_follower', 'velocity_smoother', 'collision_monitor', 'docking_server'
+            ]
+            
+            for node_name in lifecycle_nodes:
+                pkg = 'nav2_' + node_name.replace('_server', '')
+                exe_name = node_name  # Por defecto el ejecutable se llama como el nodo
+                
+                # CORRECCIÓN DE NOMBRES DE PAQUETES Y EJECUTABLES EN JAZZY
+                if node_name == 'docking_server': 
+                    pkg = 'opennav_docking'
+                    exe_name = 'opennav_docking'  # <--- EL ARREGLO ESTÁ AQUÍ
+                elif node_name == 'collision_monitor': 
+                    pkg = 'nav2_collision_monitor'
+                elif node_name == 'behavior_server': 
+                    pkg = 'nav2_behaviors'
+                elif node_name == 'route_server': 
+                    pkg = 'nav2_route'
+                
+                rems = []
+                # Evitamos que Nav2 publique directamente a las ruedas (tu pdController sigue controlando el cmd_vel real, 
+                # así que Nav2 debe publicar en cmd_vel_nav y tú deberás enlazar eso si es necesario, 
+                # o remap a cmd_vel directo si pdController cede el control totalmente).
+                # Como pdController hace un "return" cuando está en STATES[5], remap directo al cmd_vel es seguro:
+                # Ya no necesitamos remap a cmd_vel_nav porque pdController no interfiere.
+                
+                nodes_to_launch.append(
+                    LaunchNode(
+                        package=pkg,
+                        executable=exe_name, # Usamos el nombre de ejecutable corregido
+                        name=node_name,
+                        namespace=robot_name,
+                        parameters=[tmp_yaml_file, {'use_sim_time': True}],
+                        remappings=rems,
+                        output='screen'
+                    )
+                )
+                
+            nodes_to_launch.append(
+                LaunchNode(
+                    package='nav2_lifecycle_manager',
+                    executable='lifecycle_manager',
+                    name='lifecycle_manager_navigation',
+                    namespace=robot_name,
+                    parameters=[{'use_sim_time': True}, {'autostart': True}, {'node_names': lifecycle_nodes}],
+                    output='screen'
+                )
+            )
     except Exception as e:
          coordinator.get_logger().error(f"Error plantillas de Nav2: {e}")
 

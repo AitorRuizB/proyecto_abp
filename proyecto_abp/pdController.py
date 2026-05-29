@@ -184,10 +184,11 @@ class PDController(Node):
         cmd.angular.z = -control_law
 
         # TRUCO: Enviar micro-velocidad (0.0001) en estados estáticos
+        # TRUCO: Enviar micro-velocidad (0.005) en estados estáticos
         # Evita que Gazebo hiberne el motor de físicas y destruya el frame 'odom'
         if self.fsm_st == STATES[4]:
-            cmd.linear.x = 0.0001
-            cmd.angular.z = 0.0
+            cmd.linear.x = 0.0
+            cmd.angular.z = 0.005
             self.cmd_vel_publisher.publish(cmd)
             return
         elif self.fsm_st == STATES[5]:
@@ -197,8 +198,8 @@ class PDController(Node):
             self.nav_wait_timer += 1
             
             if self.nav_wait_timer < 300: 
-                cmd.linear.x = 0.0001
-                cmd.angular.z = 0.0
+                cmd.linear.x = 0.0
+                cmd.angular.z = 0.005
                 self.cmd_vel_publisher.publish(cmd)
             return
             
