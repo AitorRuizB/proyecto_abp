@@ -8,3 +8,6 @@ log/*
 *.pyc
 # archivos pdf
 *.pdf
+# ignorar mapas generados dinamicamente
+/config/*.pgm
+/config/*.yaml
