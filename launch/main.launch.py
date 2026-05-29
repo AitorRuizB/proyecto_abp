@@ -54,7 +54,13 @@ def launch_setup(context, *args, **kwargs):
         robot_name = f'robot_{i}'
         prefix = f'{robot_name}/'
         y_pose = (i) * 2.5  
-        current_yaw = yaw_0 + i * yaw_diff
+        
+        if i % 2 == 0:
+            sign = 1
+        else:
+            sign = -1
+
+        current_yaw = (yaw_0 + i * yaw_diff) * sign
         
         bridge_config.extend([
             {'ros_topic_name': f'/{robot_name}/cmd_vel', 'gz_topic_name': f'/{robot_name}/cmd_vel', 'ros_type_name': 'geometry_msgs/msg/Twist', 'gz_type_name': 'gz.msgs.Twist', 'direction': 'ROS_TO_GZ'},
