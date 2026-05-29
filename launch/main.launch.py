@@ -83,11 +83,8 @@ def launch_setup(context, *args, **kwargs):
             output='screen'
         )
 
-        # NUEVO NODO AÑADIDO: Crea la transformación /map --> robot_x/odom al vuelo
-        # Mapea la posición real de spawn en Y y el ángulo Yaw inicial (2.7)
-        
-
-       
+        # Comentado para evitar conflictos de TF, se mantiene el global para cada robot
+        """
         static_tf_robot_map = Node(
             package='tf2_ros',
             executable='static_transform_publisher',
@@ -97,6 +94,7 @@ def launch_setup(context, *args, **kwargs):
                 '--yaw', '0.0', '--pitch', '0.0', '--roll', '0.0', 
                 '--frame-id', f'{robot_name}/map', '--child-frame-id', f'{robot_name}/odom'
             ])
+        """
         static_tf_map_global = Node(
             package='tf2_ros',
             executable='static_transform_publisher',
@@ -116,7 +114,7 @@ def launch_setup(context, *args, **kwargs):
             parameters=[{'goal': goal}],
             output='screen'
         )
-
+        """
         if i == 0:
             carpet_node = Node(
                 package='proyecto_abp',
@@ -125,7 +123,7 @@ def launch_setup(context, *args, **kwargs):
                 output='screen'
             )
             nodes.append(carpet_node)
-
+        """
         nodes.extend([rsp_node, spawn_node, fsm_node, static_tf_map_global]) #, static_tf_robot_map ])
 
     bridge_yaml_path = os.path.join(tempfile.gettempdir(), 'multirobot_bridge.yaml')

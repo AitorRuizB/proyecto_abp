@@ -183,15 +183,23 @@ class PDController(Node):
         # Asignar steering
         cmd.angular.z = -control_law
 
-        # publicar comando de velocidad solo si no estamos en estados de reposo o delegación
+        # TRUCO: Enviar micro-velocidad (0.0001) en estados estáticos
+        # Evita que Gazebo hiberne el motor de físicas y destruya el frame 'odom'
         if self.fsm_st == STATES[4]:
-            # Mantener a Gazebo despierto mandando un pulso de 0 absoluto mientras SLAM guarda el mapa
-            cmd.linear.x = 0.0
+            cmd.linear.x = 0.0001
             cmd.angular.z = 0.0
             self.cmd_vel_publisher.publish(cmd)
             return
         elif self.fsm_st == STATES[5]:
-            # Ceder por completo a Nav2
+            # Mantener vivo a Gazebo los ~30 segs que tarda Nav2 en bootear (300 iteraciones a 10Hz)
+            if not hasattr(self, 'nav_wait_timer'):
+                self.nav_wait_timer = 0
+            self.nav_wait_timer += 1
+            
+            if self.nav_wait_timer < 300: 
+                cmd.linear.x = 0.0001
+                cmd.angular.z = 0.0
+                self.cmd_vel_publisher.publish(cmd)
             return
             
         self.cmd_vel_publisher.publish(cmd)
