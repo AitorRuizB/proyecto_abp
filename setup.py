@@ -15,7 +15,7 @@ setup(
         ('share/' + package_name, ['package.xml']),
         # Las rutas relativas ahora funcionan perfectamente con la nueva estructura
         (os.path.join('share', package_name, 'launch'), glob('launch/*.py') + glob('launch/*.xml')),
-        (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
+        (os.path.join('share', package_name, 'config'), glob('config/*.yaml') + glob('config/*.pgm')),
         (os.path.join('share', package_name, 'rviz'), glob('rviz/*.rviz')),
         (os.path.join('share', package_name, 'urdf'), glob('urdf/*.xacro') + glob('urdf/*.urdf')),
         (os.path.join('share', package_name, 'world'), glob('world/*.sdf') + glob('world/*.world')),
@@ -35,7 +35,6 @@ setup(
             'pd_controller = proyecto_abp.pdController:main',
             'start_slam = proyecto_abp.start_slam:main',
             'map_merge = proyecto_abp.custom_map_merger:main',
-            'carpet_manager = proyecto_abp.carpet_color_manager:main',
             'launch_nav2_after_slam = proyecto_abp.launch_nav2_after_slam:main',
             'teleop = proyecto_abp.teleop:main',
             'start_nav = proyecto_abp.start_nav:main',

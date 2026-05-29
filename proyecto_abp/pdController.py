@@ -158,26 +158,20 @@ class PDController(Node):
             self.get_logger().info('Navegando pasillo...')
 
         elif self.fsm_st == STATES[3] and not self.transition_target_located_sent: # Approach target
-            # Calcular el error y la derivada del error
             derivative = (self.visual_error - self.previous_visual_error) * FREQUENCY
-            # Calcular la señal de control PD
             control_law = (self.visualPD_gains.getKp() * self.visual_error) + (self.visualPD_gains.getKd() * derivative)
-            cmd.linear.x = VCONS * 0.5 # reducir velocidad para aproximación al objetivo
+            cmd.linear.x = VCONS * 0.5 
             self.get_logger().info(f'Aproximando objetivo (Visual) - Error: {self.visual_error:.2f}px')
 
-            # Detección robusta de objetivo para transición a TARGET_LOCATED
             if abs(self.visual_error) <= EPSILON:
-                self.transition_publisher.publish(String(data=TRANSITIONS[3])) # Publica TARGET_LOCATED
+                self.transition_publisher.publish(String(data=TRANSITIONS[3])) 
                 self.transition_target_located_sent = True
                 self.get_logger().info('✓ Transición publicada: TARGET_LOCATED')
-                self.destroy_node=True
-            else:
-                self.transition_target_counter = 0 # Resetea el contador si el error es grande
-
-        elif self.fsm_st == STATES[4]: # TARGET_LOCATED
-            control_law = 0.0
-            cmd.linear.x = 0.0 
-            self.get_logger().info('Objetivo alcanzado')
+                # Detener el robot al alcanzar el objetivo
+                cmd.linear.x = 0.0  
+                cmd.angular.z = 0.0
+                self.cmd_vel_publisher.publish(cmd)
+                return
             
 
         # === PUBLICAR TRANSICIÓN (UNA SOLA VEZ) ===
@@ -188,9 +182,29 @@ class PDController(Node):
             
         # Asignar steering
         cmd.angular.z = -control_law
-        
-        #self.get_logger().info(f'Control Law: {control_law:.4f}, Linear Vel: {cmd.linear.x:.2f}, Angular Vel: {cmd.angular.z:.4f}')
+
+        # TRUCO: Enviar micro-velocidad (0.0001) en estados estáticos
+        # TRUCO: Enviar micro-velocidad (0.005) en estados estáticos
+        # Evita que Gazebo hiberne el motor de físicas y destruya el frame 'odom'
+        if self.fsm_st == STATES[4]:
+            cmd.linear.x = 0.0
+            cmd.angular.z = 0.005
+            self.cmd_vel_publisher.publish(cmd)
+            return
+        elif self.fsm_st == STATES[5]:
+            # Mantener vivo a Gazebo los ~30 segs que tarda Nav2 en bootear (300 iteraciones a 10Hz)
+            if not hasattr(self, 'nav_wait_timer'):
+                self.nav_wait_timer = 0
+            self.nav_wait_timer += 1
+            
+            if self.nav_wait_timer < 300: 
+                cmd.linear.x = 0.0
+                cmd.angular.z = 0.005
+                self.cmd_vel_publisher.publish(cmd)
+            return
+            
         self.cmd_vel_publisher.publish(cmd)
+        
         # actualizar error de los sensores
         self.previous_visual_error = self.visual_error
         self.previous_laser_error = self.laser_error

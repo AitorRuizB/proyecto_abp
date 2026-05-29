@@ -10,7 +10,7 @@ from launch_ros.actions import Node
 
 ROBOT_XACRO = 'my_robot.xacro'
 MAPA_WORLD_FILE = 'laberinto_v2_world.sdf'
-RVIZ_FILE = 'robot_0.rviz'
+RVIZ_FILE = 'config.rviz'
 
 def generate_launch_description():
     return LaunchDescription([
@@ -61,7 +61,6 @@ def launch_setup(context, *args, **kwargs):
 
         robot_desc_cmd = Command(['xacro ', urdf_file, ' prefix:=', prefix])
 
-        # CORRECCIÓN: Mapeos globales de TF agregados al robot_state_publisher
         rsp_node = Node(
             package='robot_state_publisher',
             executable='robot_state_publisher',
@@ -84,21 +83,28 @@ def launch_setup(context, *args, **kwargs):
             output='screen'
         )
 
-        # CORRECCIÓN: Mapeos globales de TF agregados
-        static_tf_odom_node = Node(
+        # Comentado para evitar conflictos de TF, se mantiene el global para cada robot
+        """
+        static_tf_robot_map = Node(
             package='tf2_ros',
             executable='static_transform_publisher',
-            name=f'static_tf_odom_{robot_name}',
+            name=f'static_tf_map_{robot_name}',
             arguments=[
                 '--x', '0.0', '--y', '0.0', '--z', '0.0',
                 '--yaw', '0.0', '--pitch', '0.0', '--roll', '0.0', 
-                '--frame-id', f'{robot_name}/odom', '--child-frame-id', f'{robot_name}/base_footprint'
-            ],
-            remappings=[
-                ('/tf', '/tf'),
-                ('/tf_static', '/tf_static')
-            ]
-        )
+                '--frame-id', f'{robot_name}/map', '--child-frame-id', f'{robot_name}/odom'
+            ])
+        """
+        static_tf_map_global = Node(
+            package='tf2_ros',
+            executable='static_transform_publisher',
+            name=f'static_tf_map_{robot_name}',
+            arguments=[
+                '--x', '0.0', '--y', str(y_pose), '--z', '0.0',
+                '--yaw', '2.7', '--pitch', '0.0', '--roll', '0.0', 
+                '--frame-id', 'map', '--child-frame-id', f'{robot_name}/map'
+            ])    
+        
 
         fsm_node = Node(
             package='proyecto_abp',
@@ -108,7 +114,7 @@ def launch_setup(context, *args, **kwargs):
             parameters=[{'goal': goal}],
             output='screen'
         )
-
+        """
         if i == 0:
             carpet_node = Node(
                 package='proyecto_abp',
@@ -117,8 +123,8 @@ def launch_setup(context, *args, **kwargs):
                 output='screen'
             )
             nodes.append(carpet_node)
-
-        nodes.extend([rsp_node, spawn_node, fsm_node])
+        """
+        nodes.extend([rsp_node, spawn_node, fsm_node, static_tf_map_global]) #, static_tf_robot_map ])
 
     bridge_yaml_path = os.path.join(tempfile.gettempdir(), 'multirobot_bridge.yaml')
     with open(bridge_yaml_path, 'w') as f:
