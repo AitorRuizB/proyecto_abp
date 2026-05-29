@@ -326,7 +326,6 @@ class CameraProcessor(Node):
         self.fsm_st = None
         self.current_goal = None
         self.target_approach_sent = False
-        self.target_approach_counter = 0
 
 
         # Empleamos el setter en el constructor con el topic por defecto
@@ -445,7 +444,7 @@ class CameraProcessor(Node):
             # Transición robusta a APPROACH_TARGET
             if self.fsm_st == STATES[2] and not self.target_approach_sent:
                 if self.recon.get_goal_identified():
-                    self.get_logger().info(f'Goal "{self.current_goal}" identificado. Contador de acercamiento: {self.target_approach_counter + 1}/3')
+                    self.get_logger().info(f'Goal "{self.current_goal}" identificado.')
                     trans_msg.data = TRANSITIONS[2] # TARGET_APPROACH
                     self.fsm_transition_publisher_.publish(trans_msg)
                

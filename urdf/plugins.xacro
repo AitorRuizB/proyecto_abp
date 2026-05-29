@@ -24,6 +24,8 @@
             <frame_id>$(arg prefix)odom</frame_id>
             
             <child_frame_id>$(arg prefix)base_footprint</child_frame_id> 
+            
+            
         </plugin>
     </gazebo>
 

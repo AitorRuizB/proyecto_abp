@@ -9,7 +9,7 @@ from proyecto_abp.finiteStateMachine import STATES, TRANSITIONS, TRANSITION_TOPI
 
 VELOCITY_TOPIC = '/cmd_vel'  # Topic para publicar comandos de velocidad
 VCONS = 0.25
-EPSILON = 5 # visual error in pixels admited
+EPSILON = 25 # visual error in pixels admited
 MIN_VISUAL_TRACK_ITER = 15 # iterations of the visual controller to consider it successful and switch to laser based control
 class PDControllerParams():
 
@@ -34,7 +34,6 @@ class PDControllerParams():
 class PDController(Node):
     def __init__(self):
         super().__init__('pd_controller')
-        
         # PD controller gains para visual y laser 
         self.visualPD_gains = PDControllerParams(kp=0.001, kd=0.0005, sensor_type='visual', is_steering=True)
         self.laserPD_gains = [
@@ -89,8 +88,6 @@ class PDController(Node):
             self.previous_laser_error = 0.0
             self.visual_controller_success = False
             self.transition_hallway_sent = False  # Reset para próxima transición
-        #TODO hacer reset cuando sea el estado 
-
 
     def hallway_callback(self, msg):
         """Callback para el estado de detección del pasillo/puerta."""
@@ -119,9 +116,9 @@ class PDController(Node):
         if self.fsm_st == STATES[0]: # WANDER
             if not self.hallway_detected: # Searching hallway
                 # Controlador proporcional de velocidad lineal
-                cmd.linear.x = VCONS * self.laserPD_gains[0].getKp()
+                cmd.linear.x = VCONS 
                 # Controlador PD para steering
-                control_law = (self.laserPD_gains[1].getKp() * self.laser_error) + (self.laserPD_gains[1].getKd() * (self.laser_error - self.previous_laser_error) * FREQUENCY)
+                control_law = -0.1
                 self.get_logger().info('Buscando pasillo...')
                 self.controller_consecutive_actions_sent = 0
                 self.transition_hallway_sent = False  # Reset para próxima detección
@@ -161,37 +158,53 @@ class PDController(Node):
             self.get_logger().info('Navegando pasillo...')
 
         elif self.fsm_st == STATES[3] and not self.transition_target_located_sent: # Approach target
-            # Calcular el error y la derivada del error
             derivative = (self.visual_error - self.previous_visual_error) * FREQUENCY
-            # Calcular la señal de control PD
             control_law = (self.visualPD_gains.getKp() * self.visual_error) + (self.visualPD_gains.getKd() * derivative)
-            cmd.linear.x = VCONS * 0.5 # reducir velocidad para aproximación al objetivo
+            cmd.linear.x = VCONS * 0.5 
             self.get_logger().info(f'Aproximando objetivo (Visual) - Error: {self.visual_error:.2f}px')
 
-            # Detección robusta de objetivo para transición a TARGET_LOCATED
             if abs(self.visual_error) <= EPSILON:
-                self.transition_publisher.publish(String(data=TRANSITIONS[3])) # Publica TARGET_LOCATED
+                self.transition_publisher.publish(String(data=TRANSITIONS[3])) 
                 self.transition_target_located_sent = True
                 self.get_logger().info('✓ Transición publicada: TARGET_LOCATED')
-            else:
-                self.transition_target_counter = 0 # Resetea el contador si el error es grande
-
-        elif self.fsm_st == STATES[4]: # TARGET_LOCATED
-            control_law = 0.0
-            cmd.linear.x = 0.0 
-            self.get_logger().info('Objetivo alcanzado')
+                # Detener el robot al alcanzar el objetivo
+                cmd.linear.x = 0.0  
+                cmd.angular.z = 0.0
+                self.cmd_vel_publisher.publish(cmd)
+                return
             
 
         # === PUBLICAR TRANSICIÓN (UNA SOLA VEZ) ===
-        if self.visual_controller_success and not self.transition_hallway_sent:
-            self.transition_publisher.publish(String(data=TRANSITIONS[0]))  # HALLWAY_FOUND
+        if self.visual_controller_success and not self.transition_hallway_sent and self.fsm_st == STATES[0]: # Solo publicar transición si el controlador visual ha tenido éxito y no se ha publicado antes
+            self.transition_publisher.publish(String(data=TRANSITIONS[1]))  # HALLWAY_FOUND
             self.transition_hallway_sent = True
             self.get_logger().info('✓ Transición publicada: HALLWAY_FOUND')
             
         # Asignar steering
         cmd.angular.z = -control_law
 
+        # TRUCO: Enviar micro-velocidad (0.0001) en estados estáticos
+        # TRUCO: Enviar micro-velocidad (0.005) en estados estáticos
+        # Evita que Gazebo hiberne el motor de físicas y destruya el frame 'odom'
+        if self.fsm_st == STATES[4]:
+            cmd.linear.x = 0.0
+            cmd.angular.z = 0.005
+            self.cmd_vel_publisher.publish(cmd)
+            return
+        elif self.fsm_st == STATES[5]:
+            # Mantener vivo a Gazebo los ~30 segs que tarda Nav2 en bootear (300 iteraciones a 10Hz)
+            if not hasattr(self, 'nav_wait_timer'):
+                self.nav_wait_timer = 0
+            self.nav_wait_timer += 1
+            
+            if self.nav_wait_timer < 300: 
+                cmd.linear.x = 0.0
+                cmd.angular.z = 0.005
+                self.cmd_vel_publisher.publish(cmd)
+            return
+            
         self.cmd_vel_publisher.publish(cmd)
+        
         # actualizar error de los sensores
         self.previous_visual_error = self.visual_error
         self.previous_laser_error = self.laser_error
