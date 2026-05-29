@@ -126,8 +126,7 @@ def launch_setup(context, *args, **kwargs):
             )
             nodes.append(carpet_node)
 
-        # CORRECCIÓN: Ahora se añaden a la ejecución tanto el nuevo puente a odom como el de footprint
-        nodes.extend([rsp_node, spawn_node, fsm_node, static_tf_robot_map, static_tf_map_global])
+        nodes.extend([rsp_node, spawn_node, fsm_node, static_tf_map_global]) #, static_tf_robot_map ])
 
     bridge_yaml_path = os.path.join(tempfile.gettempdir(), 'multirobot_bridge.yaml')
     with open(bridge_yaml_path, 'w') as f:

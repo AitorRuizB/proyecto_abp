@@ -167,15 +167,11 @@ class PDController(Node):
                 self.transition_publisher.publish(String(data=TRANSITIONS[3])) 
                 self.transition_target_located_sent = True
                 self.get_logger().info('✓ Transición publicada: TARGET_LOCATED')
-
-        # ESTADOS DE REPOSO Y DELEGACIÓN: Frenamos el robot y apagamos el PD
-        elif self.fsm_st in [STATES[4], STATES[5]]: 
-            control_law = 0.0
-            cmd.linear.x = 0.0 
-            if self.fsm_st == STATES[4]:
-                self.get_logger().info('Objetivo alcanzado. Motores apagados. Esperando guardado del mapa...')
-            else:
-                self.get_logger().info('Delegando control a la pila de Nav2...')
+                # Detener el robot al alcanzar el objetivo
+                cmd.linear.x = 0.0  
+                cmd.angular.z = 0.0
+                self.cmd_vel_publisher.publish(cmd)
+                return
             
 
         # === PUBLICAR TRANSICIÓN (UNA SOLA VEZ) ===
@@ -186,9 +182,20 @@ class PDController(Node):
             
         # Asignar steering
         cmd.angular.z = -control_law
-        
-        #self.get_logger().info(f'Control Law: {control_law:.4f}, Linear Vel: {cmd.linear.x:.2f}, Angular Vel: {cmd.angular.z:.4f}')
+
+        # publicar comando de velocidad solo si no estamos en estados de reposo o delegación
+        if self.fsm_st == STATES[4]:
+            # Mantener a Gazebo despierto mandando un pulso de 0 absoluto mientras SLAM guarda el mapa
+            cmd.linear.x = 0.0
+            cmd.angular.z = 0.0
+            self.cmd_vel_publisher.publish(cmd)
+            return
+        elif self.fsm_st == STATES[5]:
+            # Ceder por completo a Nav2
+            return
+            
         self.cmd_vel_publisher.publish(cmd)
+        
         # actualizar error de los sensores
         self.previous_visual_error = self.visual_error
         self.previous_laser_error = self.laser_error
