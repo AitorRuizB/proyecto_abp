@@ -105,6 +105,3 @@ ros2 run proyecto_abp start_logic 2
 
 ```
 
-```
-
-```
