@@ -350,7 +350,7 @@ class CameraProcessor(Node):
         self.error_publisher_ = self.create_publisher(Float32, self.robot_id + ERROR_TOPIC, 10)
         self.hallway_publisher_ = self.create_publisher(Bool, self.robot_id + HALLWAY_TOPIC, 10)
         self.fsm_transition_publisher_ = self.create_publisher(String, self.robot_id + TRANSITION_TOPIC, 10)
-        self.processed_image_publisher_ = self.create_publisher(Image, self.robot_id + '/processed_image', 10)
+        #self.processed_image_publisher_ = self.create_publisher(Image, self.robot_id + '/processed_image', 10)
         self.goal_reached_publisher_ = self.create_publisher(Bool, self.robot_id + '/goal_reached', 10)
         
         
@@ -456,9 +456,9 @@ class CameraProcessor(Node):
         """Publica y muestra la imagen procesada en una ventana si SHOW_CAMERA_FEED es True."""
         if self.result is not None and self.dynamic_camera_feed:
             try:
-                # Publicar la imagen procesada para RViz
-                processed_img_msg = self.bridge.cv2_to_imgmsg(self.result, "bgr8")
-                self.processed_image_publisher_.publish(processed_img_msg)
+                # Publicar la imagen procesada para RViz - Debug purposes
+                #processed_img_msg = self.bridge.cv2_to_imgmsg(self.result, "bgr8")
+                #self.processed_image_publisher_.publish(processed_img_msg)
 
                 # Mostrar en ventana de OpenCV
                 cv2.imshow(self.window_name, self.result)
