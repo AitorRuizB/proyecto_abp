@@ -2,17 +2,15 @@ import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
 from std_msgs.msg import Float32, Bool, String
-import csv
-import os
-from datetime import datetime
-from cameraProcessor import ERROR_TOPIC as VISUAL_ERROR_TOPIC, HALLWAY_TOPIC
-from laserProcessor import ERROR_TOPIC as LASER_ERROR_TOPIC, OBSTACLE_TOPIC
-from finiteStateMachine import STATES, TRANSITIONS, TRANSITION_TOPIC, STATE_TOPIC, FREQUENCY
+from proyecto_abp.cameraProcessor import ERROR_TOPIC as VISUAL_ERROR_TOPIC, HALLWAY_TOPIC
+from proyecto_abp.laserProcessor import ERROR_TOPIC as LASER_ERROR_TOPIC, OBSTACLE_TOPIC
+from proyecto_abp.finiteStateMachine import STATES, TRANSITIONS, TRANSITION_TOPIC, STATE_TOPIC, FREQUENCY
 
-SCAN_TOPIC = '/scan'  # Topic del laser
+
 VELOCITY_TOPIC = '/cmd_vel'  # Topic para publicar comandos de velocidad
 VCONS = 0.25
-
+EPSILON = 25 # visual error in pixels admited
+MIN_VISUAL_TRACK_ITER = 15 # iterations of the visual controller to consider it successful and switch to laser based control
 class PDControllerParams():
 
     def __init__(self, kp, kd, sensor_type, is_steering):
@@ -34,9 +32,8 @@ class PDControllerParams():
         self.kd = kd
         
 class PDController(Node):
-    def __init__(self, robot_id):
+    def __init__(self):
         super().__init__('pd_controller')
-        
         # PD controller gains para visual y laser 
         self.visualPD_gains = PDControllerParams(kp=0.001, kd=0.0005, sensor_type='visual', is_steering=True)
         self.laserPD_gains = [
@@ -48,8 +45,13 @@ class PDController(Node):
         self.previous_laser_error = 0.0
         self.controller_consecutive_actions_sent = 0 # detectar si ha conseguido minimizar el error visual
         self.fsm_st = STATES[0] # estado inicial de la FSM
+        self.transition_hallway_sent = False  # Flag para evitar publicar múltiples transiciones
+        self.transition_hallway_counter = 0  # Contador para hacer transición más robusta
+        self.transition_target_located_sent = False  # Flag para evitar publicar múltiples transiciones a TARGET_LOCATED
 
-        self.robot_id = robot_id # id is a namespace like '/robot_1'
+        self.robot_id = self.get_namespace()
+        if self.robot_id == '/':
+            self.robot_id = '/robot_0'  # Default si no hay namespace
         
         # Suscripción a los topics de la cámara
         self.create_subscription(Float32, self.robot_id + VISUAL_ERROR_TOPIC, self.visual_error_callback, 10)
@@ -64,30 +66,12 @@ class PDController(Node):
 
         # Estado actual del pasillo y el objetivo
         self.hallway_detected = False
-        self.visual_error = None
-        self.laser_error = None
+        self.visual_error = 0.0
+        self.laser_error = 0.0
         self.there_is_obstacle = False
         self.visual_controller_success = False        # Timer para el bucle de control principal
         self.timer = self.create_timer(1.0 / FREQUENCY, self.control_loop) # Ejecutar el bucle de control a 10 Hz
         
-        # --- INICIO: Configuración para guardado en CSV ---
-        # Crear un nombre de archivo único para el log
-        robot_name = self.robot_id.strip('/') # Eliminar la barra inicial para el nombre de archivo
-        timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-        # Directorio para guardar los CSV
-        csv_dir = "csv"
-        os.makedirs(csv_dir, exist_ok=True)
-        csv_filepath = os.path.join(csv_dir, f"pd_controller_log_{robot_name}_{timestamp_str}.csv")
-        
-        # Abrir el archivo y crear el writer
-        self.csv_file = open(csv_filepath, 'w', newline='')
-        self.csv_writer = csv.writer(self.csv_file)
-        
-        # Escribir la cabecera
-        self.csv_writer.writerow(['timestamp', 'visual_error', 'laser_error', 'control_law', 'fsm_state'])
-        self.get_logger().info(f"Guardando datos de control en: {csv_filepath}")
-        # --- FIN: Configuración para guardado en CSV ---
         
         self.get_logger().info(f'PDController para {self.robot_id} inicializado.')
 
@@ -98,12 +82,12 @@ class PDController(Node):
     def laser_error_callback(self, msg):
         """Callback para el error del láser."""
         self.laser_error = msg.data
-        if self.visual_controller_success:
-            # reset error as we switch heuristic in the PD laser controller
+        # Solo resetear cuando ya estamos en el estado APPROACH_DOOR (transición completada)
+        if self.visual_controller_success and self.fsm_st == STATES[1]:
             self.laser_error = 0.0 
             self.previous_laser_error = 0.0
             self.visual_controller_success = False
-
+            self.transition_hallway_sent = False  # Reset para próxima transición
 
     def hallway_callback(self, msg):
         """Callback para el estado de detección del pasillo/puerta."""
@@ -118,10 +102,6 @@ class PDController(Node):
         if msg.data in STATES:
             self.fsm_st = msg.data
 
-    def csv_data_saving(self, timestamp, visual_error, laser_error, control_law, fsm_state):
-        """Guarda una fila de datos en el archivo CSV."""
-        self.csv_writer.writerow([timestamp, visual_error, laser_error, control_law, fsm_state])
-    
     
     def control_loop(self):
         """Bucle de control principal que se ejecuta periódicamente."""
@@ -130,82 +110,119 @@ class PDController(Node):
         
         cmd = Twist()
         cmd.linear.x = VCONS  # Usar la velocidad lineal del láser para evitar obstáculos
-        
-        # flag para detectar que el controlador visual llevo al robot por la puerta
-        self.visual_controller_success = self.controller_consecutive_actions_sent > 50 and abs(self.previous_visual_error) == 1.0 and self.hallway_detected
+        control_law = 0.0
 
-        if self.visual_controller_success:
-            self.transition_publisher.publish(String(data=TRANSITIONS[0])) # cambio de estado
-            
-        # Estado de wander & search: usar ley de control del Laser
+        # === MÁQUINA DE ESTADOS PARA TRANSICIÓN VISUAL → LASER ===
         if self.fsm_st == STATES[0]: # WANDER
             if not self.hallway_detected: # Searching hallway
                 # Controlador proporcional de velocidad lineal
-                cmd.linear.x = VCONS * self.laserPD_gains[0].getKp() # controlador porporcional de velocidad lineal
+                cmd.linear.x = VCONS 
                 # Controlador PD para steering
-                control_law = (self.laserPD_gains[1].getKp() * self.laser_error) + (self.laserPD_gains[1].getKd() * (self.laser_error - self.previous_laser_error) * FREQUENCY)
+                if self.there_is_obstacle:
+                    control_law = (self.laserPD_gains[1].getKp() * self.laser_error) + (self.laserPD_gains[1].getKd() * (self.laser_error - self.previous_laser_error) * FREQUENCY)
+                else:
+                    control_law = -0.1
+                    
                 self.get_logger().info('Buscando pasillo...')
                 self.controller_consecutive_actions_sent = 0
+                self.transition_hallway_sent = False  # Reset para próxima detección
+                self.transition_hallway_counter = 0
 
-            else: # Approach hallway
+            else: # Approach hallway with visual controller
                 # Calcular el error y la derivada del error
                 derivative = (self.visual_error - self.previous_visual_error) * FREQUENCY
                 # Calcular la señal de control PD
                 control_law = (self.visualPD_gains.getKp() * self.visual_error) + (self.visualPD_gains.getKd() * derivative)
-                self.get_logger().info('Aproximando puerta con Visual based PD Controller...')
+                self.get_logger().info(f'Aproximando puerta (Visual) - Error: {self.visual_error:.2f}px')
+                
+                # DETECCIÓN ROBUSTA DE TRANSICIÓN: contador para evitar ruido
+                if abs(self.visual_error) <= EPSILON and self.hallway_detected:
+                    self.transition_hallway_counter += 1
+                    if self.transition_hallway_counter >= 3:  # Requiere 3 iteraciones consecutivas (150ms @ 20Hz)
+                        self.visual_controller_success = True
+                        self.transition_hallway_counter = 0
+                else:
+                    self.transition_hallway_counter = 0
 
-        elif self.fsm_st == STATES[1]: # Aprox puerta
+        elif self.fsm_st == STATES[1]: # APPROACH_DOOR
             # Controlador proporcional de velocidad lineal
-            cmd.linear.x = VCONS * self.laserPD_gains[0].getKp() # controlador porporcional de velocidad lineal
+            cmd.linear.x = VCONS * self.laserPD_gains[0].getKp()
             # Controlador PD para steering
             control_law = (self.laserPD_gains[1].getKp() * self.laser_error) + (self.laserPD_gains[1].getKd() * (self.laser_error - self.previous_laser_error) * FREQUENCY)
-            self.get_logger().info('Aproximando puerta con Laser based PD Controller...')
+            self.get_logger().info(f'Aproximando puerta (Laser) - Error: {self.laser_error:.4f}')
         
         # Estado navegacion por el pasillo -> PD laser based control con nuevas ganancias y umbrales
         elif self.fsm_st == STATES[2]: # NAVIGATING_HALLWAY
             # Controlador proporcional de velocidad lineal
-            cmd.linear.x = VCONS * self.laserPD_gains[0].getKp() # controlador porporcional de velocidad lineal
+            cmd.linear.x = VCONS * self.laserPD_gains[0].getKp()
             self.laserPD_gains[1].setKp(1.2) # increase gain as quick turns are required
             self.laserPD_gains[1].setKd(0.19)
             # Controlador PD para steering
             control_law = (self.laserPD_gains[1].getKp() * self.laser_error) + (self.laserPD_gains[1].getKd() * (self.laser_error - self.previous_laser_error) * FREQUENCY)
             self.get_logger().info('Navegando pasillo...')
 
+        elif self.fsm_st == STATES[3] and not self.transition_target_located_sent: # Approach target
+            derivative = (self.visual_error - self.previous_visual_error) * FREQUENCY
+            control_law = (self.visualPD_gains.getKp() * self.visual_error) + (self.visualPD_gains.getKd() * derivative)
+            cmd.linear.x = VCONS * 0.5 
+            self.get_logger().info(f'Aproximando objetivo (Visual) - Error: {self.visual_error:.2f}px')
+
+            if abs(self.visual_error) <= EPSILON:
+                self.transition_publisher.publish(String(data=TRANSITIONS[3])) 
+                self.transition_target_located_sent = True
+                self.get_logger().info('✓ Transición publicada: TARGET_LOCATED')
+                # Detener el robot al alcanzar el objetivo
+                cmd.linear.x = 0.0  
+                cmd.angular.z = 0.0
+                self.cmd_vel_publisher.publish(cmd)
+                return
+            
+
+        # === PUBLICAR TRANSICIÓN (UNA SOLA VEZ) ===
+        if self.visual_controller_success and not self.transition_hallway_sent and self.fsm_st == STATES[0]: # Solo publicar transición si el controlador visual ha tenido éxito y no se ha publicado antes
+            self.transition_publisher.publish(String(data=TRANSITIONS[1]))  # HALLWAY_FOUND
+            self.transition_hallway_sent = True
+            self.get_logger().info('✓ Transición publicada: HALLWAY_FOUND')
+            
         # Asignar steering
         cmd.angular.z = -control_law
 
-        # --- INICIO: Guardado de datos en CSV ---
-        current_time = self.get_clock().now()
-        timestamp_sec = current_time.nanoseconds / 1e9
-        self.csv_data_saving(timestamp_sec, self.visual_error, self.laser_error, control_law, self.fsm_st)
-        # --- FIN: Guardado de datos en CSV ---
-
-        #self.get_logger().info(f"VLineal: {cmd.linear.x:.2f}, Angular: {cmd.angular.z:.2f}, Error Visual: {self.visual_error:.2f}, Error Laser: {self.laser_error:.2f}, Obstacle?: {self.there_is_obstacle}")
-        self.controller_consecutive_actions_sent += 1
-
+        # TRUCO: Enviar micro-velocidad (0.0001) en estados estáticos
+        # TRUCO: Enviar micro-velocidad (0.005) en estados estáticos
+        # Evita que Gazebo hiberne el motor de físicas y destruya el frame 'odom'
+        if self.fsm_st == STATES[4]:
+            cmd.linear.x = 0.0
+            cmd.angular.z = 0.005
+            self.cmd_vel_publisher.publish(cmd)
+            return
+        elif self.fsm_st == STATES[5]:
+            # Mantener vivo a Gazebo los ~30 segs que tarda Nav2 en bootear (300 iteraciones a 10Hz)
+            if not hasattr(self, 'nav_wait_timer'):
+                self.nav_wait_timer = 0
+            self.nav_wait_timer += 1
+            
+            if self.nav_wait_timer < 300: 
+                cmd.linear.x = 0.0
+                cmd.angular.z = 0.005
+                self.cmd_vel_publisher.publish(cmd)
+            return
+            
         self.cmd_vel_publisher.publish(cmd)
+        
         # actualizar error de los sensores
         self.previous_visual_error = self.visual_error
         self.previous_laser_error = self.laser_error
 
-    def destroy_node(self):
-        """Limpia recursos, como cerrar el archivo CSV, antes de que el nodo se destruya."""
-        if hasattr(self, 'csv_file') and self.csv_file:
-            self.get_logger().info("Cerrando archivo CSV.")
-            self.csv_file.close()
-        super().destroy_node()
 
 # -------------------------------- ZONA DE PRUEBAS DEL CONTROLADOR PD ------------------------------------------
 def main(args=None):
     """Función principal para inicializar y ejecutar el nodo PDController."""
     rclpy.init(args=args)
-    robot_id = '/robot_0'  # Cambia esto según el robot que quieras controlar
-    pd_controller = PDController(robot_id)
+    pd_controller = PDController()
 
     # rclpy.spin() se encargará de ejecutar el timer y los callbacks
     rclpy.spin(pd_controller)
 
-    pd_controller.destroy_node()
     rclpy.shutdown()
     
 if __name__ == '__main__':

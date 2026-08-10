@@ -1,61 +1,105 @@
-# Multirobot Bringup
 
-A ROS2 package for managing multi-robot bringup and coordination.
+# 🤖 Proyecto ABP - Exploración & Búsqueda Multirobot en ROS2
 
-## Project Structure
+## 📖 Descripción
+Este proyecto implementa un sistema multi-robot desarrollado en **ROS2 Jazzy** utilizando el simulador **Gazebo Harmonic**. El sistema integra herramientas avanzadas como Nav2 y SLAM Toolbox para llevar a cabo tareas de exploración, mapeo, detección de objetivos mediante visión artificial (cámara) y navegación coordinada de forma autónoma.
 
-This project follows the ROS2 standard package structure:
+## 📂 Estructura del Proyecto
 
-```
-proyecto_abp/
+```text
 ├── src/
-│   └── proyecto_abp/          # Python package
-│       ├── __init__.py              # Package initialization
-│       └── *.py                     # Python modules
-├── config/                          # Configuration files (YAML, etc.)
-├── launch/                          # ROS2 launch files (.py, .xml)
-├── rviz/                            # RViz configuration files (.rviz)
-├── urdf/                            # Robot model files (.xacro, .urdf)
-├── worlds/                          # Gazebo simulation world files (.sdf, .world)
-├── resource/                        # Package resource files
-├── test/                            # Test files
-├── package.xml                      # ROS2 package metadata
-├── setup.py                         # Python package setup
-├── setup.cfg                        # Setup configuration
-└── README.md                        # This file
+│   └── proyecto_abp/          # Paquete principal de ROS2
+│       ├── launch/            # Archivos de lanzamiento (.launch.py)
+│       ├── config/            # Archivos de configuración (YAML y mapas)
+|       ├── rviz/              # Archivos de configuración RViZ
+│       ├── urdf/              # Modelos y descripciones de los robots (Xacro)
+│       ├── world/             # Entornos de simulación en Gazebo (.sdf)
+│       ├── proyecto_abp/      # Nodos de Python (Cámara, Láser, FSM, Controladores, SLAM, Nav)
+|       ├── setup.cfg          # Archivo de config
+|       ├── setup.py           # Entry point y ejecutables
+|       ├── package.xml        # Dependencias para los archivos launch
+|       ├── requirements.md            # Dependencias detalladas del proyecto
+|       └── README.md                  # Este documento
+
 ```
 
-## Building
+---
 
-To build this package in a colcon workspace:
+## ⚙️ Requisitos y Dependencias
+
+Para mantener este documento limpio, todas las dependencias de Python (librerías de visión y matemáticas) y los paquetes del sistema de ROS2 Jazzy (Nav2, Gazebo, SLAM) se han documentado por separado.
+
+👉 **Por favor, consulta el archivo [requirements.md] para ver la lista completa de dependencias y las instrucciones detalladas de instalación antes de continuar.**
+
+---
+
+## 🚀 Compilación del Proyecto
+
+Asegúrate de clonar este repositorio dentro de la carpeta `src` de tu espacio de trabajo (workspace) de ROS2.
+
+```bash
+# 1. Crear el workspace (si no tienes uno)
+mkdir -p ~/ros2_ws/src
+cd ~/ros2_ws/src
+
+# 2. Clonar el repositorio
+git clone <URL_DE_TU_REPOSITORIO> proyecto_abp
+
+# 3. Moverse a la raíz del workspace
+cd ~/ros2_ws
+
+```
+
+---
+
+## 🎮 Ejecución
+
+Para la ejecución del sistema multirobot con **2 robots** y siendo el objetivo de la búsqueda el objeto de color **verde**, se necesitan cuatro terminales abiertos en paralelo.
+
+La dirección de trabajo en cada terminal debe ser el **directorio raíz o *workspace*** donde esté instalado ROS2 Jazzy (ej. `~/ros2_ws`), teniendo el paquete `proyecto_abp` bajo la carpeta `src/`.
+
+Es fundamental ejecutar los comandos en cada terminal siguiendo estrictamente el **orden enumerado** a continuación:
+
+### 1. Terminal 1: Simulación y Entorno Base
+
+Este terminal se encarga de compilar el paquete, cargar el entorno y lanzar RViz, Gazebo junto a nodos críticos como la máquina de estados finitos (FSM).
 
 ```bash
 colcon build --packages-select proyecto_abp
+source install/setup.bash
+ros2 launch proyecto_abp main.launch.py
+
 ```
 
-## Running
+*(Nota: `main.launch.py` lanza por defecto 2 robots y busca el color verde. Si se desea cambiar, se pueden pasar parámetros como `num_robots:=3 goal:=blue`).*
 
-Source the setup file and run launch files:
+### 2. Terminal 2: Lanzamiento de SLAM
+
+Este terminal inicia las herramientas de mapeado y localización simultánea para ambos robots, integrando los datos de sus sensores.
 
 ```bash
 source install/setup.bash
-ros2 launch proyecto_abp view_robot.launch.py
+ros2 run proyecto_abp start_slam 2
+
 ```
 
-## Dependencies
+### 3. Terminal 3: Lanzamiento de Nav2
 
-This package requires:
-- ROS2 (Humble or newer recommended)
-- rclpy
-- Standard ROS2 message types
+Este terminal arranca el coordinador y los servidores de acción de Navigation2 para la navegación y planificación de trayectorias.
 
-See `package.xml` for complete dependency list.
+```bash
+source install/setup.bash
+ros2 run proyecto_abp start_nav 2
 
-## License
+```
 
-TODO: Add appropriate license
+### 4. Terminal 4: Lógica de Control
 
-## Authors
+Este terminal activa de manera orquestada el procesamiento de la cámara, el procesamiento láser y el controlador PD encargado de la evasión de obstáculos y seguimiento visual.
 
-- Aitor - Lead developer
-- Juan - Contributor
+```bash
+source install/setup.bash
+ros2 run proyecto_abp start_logic 2
+
+```
+
