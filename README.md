@@ -1,7 +1,5 @@
-Aquí tienes el archivo `README.md` completamente limpio y consolidado en un único bloque. Solo tienes que darle al botón de copiar en la esquina superior derecha del cuadro y pegarlo en tu archivo.
 
-```markdown
-# 🤖 Proyecto ABP - Exploración Multirobot en ROS2
+# 🤖 Proyecto ABP - Exploración & Búsqueda Multirobot en ROS2
 
 ## 📖 Descripción
 Este proyecto implementa un sistema multi-robot desarrollado en **ROS2 Jazzy** utilizando el simulador **Gazebo Harmonic**. El sistema integra herramientas avanzadas como Nav2 y SLAM Toolbox para llevar a cabo tareas de exploración, mapeo, detección de objetivos mediante visión artificial (cámara) y navegación coordinada de forma autónoma.
